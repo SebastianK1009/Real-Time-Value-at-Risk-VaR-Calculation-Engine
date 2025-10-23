@@ -9,7 +9,17 @@ module "eks_cluster" {
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
 
-  enable_irsa = true   # 👈 Enables OIDC provider for IRSA automatically
+  
+  # Enables OIDC provider for IRSA automatically to let your applications securely access AWS services
+  # Allows pods to assume IAM roles using Kubernetes Service Accounts
+  # Uses EKS OIDC provider to establish trust between Kubernetes and AWS IAM
+  enable_irsa = true
+  
+  # Enable cluster creator admin permissions
+  # Automatically mapped the IAM identity running Terraform to system:masters in Kubernetes
+  # Updated the aws-auth ConfigMap to include your user with cluster-admin privileges
+  # Without this, EKS have no record of your IAM user in its aws-auth ConfigMap
+  enable_cluster_creator_admin_permissions = true
 
   eks_managed_node_groups = {
     general = {
@@ -48,4 +58,5 @@ module "vpc" {
   }
 }
 
+# Fetch available availability zones in the specified region
 data "aws_availability_zones" "available" {}
