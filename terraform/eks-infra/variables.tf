@@ -11,5 +11,5 @@ variable "eks_version" {
 }
 
 variable "node_instance_type" {
-  default = "t3.large"
+  default = "t2.micro"
 }
