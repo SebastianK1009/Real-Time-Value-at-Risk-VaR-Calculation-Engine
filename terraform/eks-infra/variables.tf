@@ -7,7 +7,7 @@ variable "cluster_name" {
 }
 
 variable "eks_version" {
-  default = "1.30"
+  default = "1.33"
 }
 
 variable "node_instance_type" {
