@@ -25,7 +25,7 @@ module "eks_cluster" {
     general = {
       instance_types = [var.node_instance_type]
       min_size       = 1
-      max_size       = 5
+      max_size       = 3
       desired_size   = 2
       capacity_type  = "ON_DEMAND"
     }
