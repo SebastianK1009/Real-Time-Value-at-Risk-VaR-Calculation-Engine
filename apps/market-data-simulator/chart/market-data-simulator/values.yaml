@@ -1,0 +1,27 @@
+replicaCount: 1
+
+# Docker image configuration
+image:
+  # Image name - use ECR repository for EKS deployments
+  repository: 480609332059.dkr.ecr.ap-southeast-1.amazonaws.com/market-data-simulator
+  # Pull policy: IfNotPresent uses local image if available
+  pullPolicy: IfNotPresent
+  # Image tag to deploy
+  tag: "latest"
+
+# Kubernetes Service configuration
+service:
+  # ClusterIP = internal only (no external IP)
+  type: ClusterIP
+  # Port exposed by the service
+  port: 9999
+
+# Resource limits and requests for each pod
+resources:
+  limits:
+    cpu: 500m # 0.5 CPU cores
+    memory: 256Mi # 256 megabytes RAM
+  # Guaranteed resources for each pod
+  requests:
+    cpu: 100m # 0.1 CPU cores
+    memory: 128Mi # 128 megabytes RAM

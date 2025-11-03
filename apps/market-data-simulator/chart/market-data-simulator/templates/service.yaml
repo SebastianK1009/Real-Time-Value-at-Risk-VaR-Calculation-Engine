@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  # Dynamic name from helper template (matches deployment name)
+  name: {{ include "market-data-simulator.fullname" . }}
+  # Standard labels injected from helper
+  labels:
+    {{- include "market-data-simulator.labels" . | nindent 4 }}
+spec:
+  # Service type from values.yaml (ClusterIP = internal only)
+  type: {{ .Values.service.type }}
+  ports:
+  # Service port configuration
+  - port: {{ .Values.service.port }}      # Port exposed by service (9999)
+    targetPort: tcp                       # Routes to container port named "tcp"
+    protocol: TCP
+    name: tcp
+  # Routes traffic to pods with these labels
+  selector:
+    {{- include "market-data-simulator.selectorLabels" . | nindent 4 }}

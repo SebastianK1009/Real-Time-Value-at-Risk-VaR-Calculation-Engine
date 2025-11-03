@@ -9,11 +9,6 @@ module "eks_cluster" {
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
 
-  # Set upgrade policy to STANDARD to avoid extended support charges
-  cluster_upgrade_policy = {
-    support_type = "STANDARD"
-  }
-  
   # Enables OIDC provider for IRSA automatically to let your applications securely access AWS services
   # Allows pods to assume IAM roles using Kubernetes Service Accounts
   # Uses EKS OIDC provider to establish trust between Kubernetes and AWS IAM
