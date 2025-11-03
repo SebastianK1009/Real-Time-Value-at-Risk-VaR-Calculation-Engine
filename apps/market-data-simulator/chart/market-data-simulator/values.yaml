@@ -1,9 +1,9 @@
-replicaCount: 2
+replicaCount: 1
 
 # Docker image configuration
 image:
-  # Image name (without registry prefix for local images)
-  repository: market-data-simulator
+  # Image name - use ECR repository for EKS deployments
+  repository: 480609332059.dkr.ecr.ap-southeast-1.amazonaws.com/market-data-simulator
   # Pull policy: IfNotPresent uses local image if available
   pullPolicy: IfNotPresent
   # Image tag to deploy

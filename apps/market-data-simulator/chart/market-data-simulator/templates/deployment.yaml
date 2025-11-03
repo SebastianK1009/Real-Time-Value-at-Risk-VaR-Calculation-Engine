@@ -2,51 +2,53 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   # Dynamic name from helper template
-  name: { { include "market-data-simulator.fullname" . } }
+  name: {{ include "market-data-simulator.fullname" . }}
   # Standard labels injected from helper
-  labels: { { - include "market-data-simulator.labels" . | nindent 4 } }
+  labels:
+    {{- include "market-data-simulator.labels" . | nindent 4 }}
 spec:
   # Number of pod replicas (from values.yaml)
-  replicas: { { .Values.replicaCount } }
+  replicas: {{ .Values.replicaCount }}
   # Label selector to find pods managed by this deployment
   selector:
     matchLabels:
-      { { - include "market-data-simulator.selectorLabels" . | nindent 6 } }
+      {{- include "market-data-simulator.selectorLabels" . | nindent 6 }}
   # Pod template specification
   template:
     metadata:
       # Pod labels (must match selector above)
       labels:
-        { { - include "market-data-simulator.selectorLabels" . | nindent 8 } }
+        {{- include "market-data-simulator.selectorLabels" . | nindent 8 }}
     spec:
       containers:
-        # Container name from Chart.yaml
-        - name: { { .Chart.Name } }
-          # Docker image from values.yaml
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: { { .Values.image.pullPolicy } }
-          ports:
-            # TCP port configuration
-            - name: tcp
-              containerPort: 9999
-              protocol: TCP
-          # Environment variables (hardcoded for MVP)
-          env:
-            - name: MARKET_DATA_HOST
-              value: "0.0.0.0" # Listen on all interfaces
-            - name: MARKET_DATA_PORT
-              value: "9999" # TCP port number
-          # Liveness probe: restart container if this fails
-          livenessProbe:
-            tcpSocket:
-              port: tcp
-            initialDelaySeconds: 10 # Wait 10s before first check
-            periodSeconds: 30 # Check every 30s
-          # Readiness probe: remove from service if this fails
-          readinessProbe:
-            tcpSocket:
-              port: tcp
-            initialDelaySeconds: 5 # Wait 5s before first check
-            periodSeconds: 10 # Check every 10s
-          # Resource limits and requests from values.yaml
-          resources: { { - toYaml .Values.resources | nindent 12 } }
+      # Container name from Chart.yaml
+      - name: {{ .Chart.Name }}
+        # Docker image from values.yaml
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        # TCP port configuration
+        - name: tcp
+          containerPort: 9999
+          protocol: TCP
+        # Environment variables (hardcoded for MVP)
+        env:
+        - name: MARKET_DATA_HOST
+          value: "0.0.0.0"  # Listen on all interfaces
+        - name: MARKET_DATA_PORT
+          value: "9999"      # TCP port number
+        # Liveness probe: restart container if this fails
+        livenessProbe:
+          tcpSocket:
+            port: tcp
+          initialDelaySeconds: 10  # Wait 10s before first check
+          periodSeconds: 30        # Check every 30s
+        # Readiness probe: remove from service if this fails
+        readinessProbe:
+          tcpSocket:
+            port: tcp
+          initialDelaySeconds: 5   # Wait 5s before first check
+          periodSeconds: 10        # Check every 10s
+        # Resource limits and requests from values.yaml
+        resources:
+          {{- toYaml .Values.resources | nindent 12 }}

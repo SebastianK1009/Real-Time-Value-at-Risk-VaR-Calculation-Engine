@@ -18,7 +18,29 @@ cd apps/market-data-simulator
 docker build -t market-data-simulator:latest .
 ```
 
+<<<<<<< HEAD
 ### 2. Deploy to Kubernetes
+=======
+### 2. Push to Amazon ECR
+
+```bash
+# Get your AWS account ID
+AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+AWS_REGION=ap-southeast-1
+
+# Create ECR repository (if it doesn't exist)
+aws ecr create-repository --repository-name market-data-simulator --region $AWS_REGION 2>/dev/null || true
+
+# Login to ECR
+aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+
+# Tag and push image
+docker tag market-data-simulator:latest $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/market-data-simulator:latest
+docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/market-data-simulator:latest
+```
+
+### 3. Deploy to Kubernetes
+>>>>>>> feature/001-iac
 
 **Option A: Using kubectl (Standalone YAML)**
 
@@ -64,10 +86,18 @@ python src/test_client.py
 ### Helm Values (values.yaml)
 
 ```yaml
+<<<<<<< HEAD
 replicaCount: 2
 
 image:
   repository: market-data-simulator
+=======
+# Cost-optimized for small clusters
+replicaCount: 1
+
+image:
+  repository: 480609332059.dkr.ecr.ap-southeast-1.amazonaws.com/market-data-simulator
+>>>>>>> feature/001-iac
   tag: latest
   pullPolicy: IfNotPresent
 
@@ -84,6 +114,11 @@ resources:
     memory: 256Mi
 ```
 
+<<<<<<< HEAD
+=======
+**Note:** Replace `480609332059` with your AWS account ID.
+
+>>>>>>> feature/001-iac
 ### Environment Variables
 
 - `MARKET_DATA_HOST`: Bind address (default: "0.0.0.0")
@@ -105,10 +140,18 @@ helm uninstall market-data-simulator
 
 ## Architecture
 
+<<<<<<< HEAD
 - **Deployment**: 2 replicas for high availability
 - **Service**: ClusterIP for internal cluster access
 - **Health Checks**: TCP socket probes on port 9999
 - **Resources**: CPU and memory limits for stability
+=======
+- **Deployment**: 1 replica (cost-optimized for small clusters)
+- **Service**: ClusterIP for internal cluster access
+- **Health Checks**: TCP socket probes on port 9999
+- **Resources**: CPU and memory limits for stability
+- **Container Registry**: Amazon ECR (free tier: 500 MB storage/month)
+>>>>>>> feature/001-iac
 
 ## Instruments Streamed
 
@@ -153,6 +196,53 @@ This is a **minimal viable deployment** with only essential components. Advanced
 
 Add back advanced features as needed for production deployments.
 
+<<<<<<< HEAD
+=======
+## Cost Optimization
+
+This deployment is optimized for cost on small EKS clusters:
+
+### Current Configuration
+
+- **1 replica** instead of 2 (reduces pod count by 50%)
+- **ECR free tier** for image storage (500 MB/month free)
+- **Small EC2 instances** (t3.small/t3.medium) with pod limits
+
+### Pod Capacity on AWS EKS
+
+AWS EKS limits pods per node based on instance ENI capacity:
+
+- **t3.small**: ~4-8 pods per node
+- **t3.medium**: ~8-17 pods per node
+- **t3.large**: ~29 pods per node
+
+### Additional Cost Savings
+
+To further reduce costs on small clusters:
+
+```bash
+# Scale down AWS Load Balancer Controller (if not using Ingress)
+kubectl scale deployment aws-load-balancer-controller -n kube-system --replicas=1
+
+# Scale down CoreDNS (only if cluster has light DNS load)
+kubectl scale deployment coredns -n kube-system --replicas=1
+```
+
+### Scaling for Production
+
+When ready for production with high availability:
+
+```bash
+# Scale up to 2+ replicas
+kubectl scale deployment market-data-simulator --replicas=2
+
+# Or update values.yaml and helm upgrade
+helm upgrade market-data-simulator chart/market-data-simulator --set replicaCount=2
+```
+
+---
+
+>>>>>>> feature/001-iac
 ---
 
 ## 📦 Helm Chart & YAML Structure Explained

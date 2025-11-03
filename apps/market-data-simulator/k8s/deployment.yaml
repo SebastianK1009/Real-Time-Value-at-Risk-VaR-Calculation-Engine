@@ -8,8 +8,8 @@ metadata:
   labels:
     app: market-data-simulator
 spec:
-  # Run 2 replicas for high availability
-  replicas: 2
+  # Run 1 replica for cost optimization on small clusters
+  replicas: 1
   # Label selector to find pods managed by this deployment
   selector:
     matchLabels:
@@ -23,8 +23,8 @@ spec:
     spec:
       containers:
         - name: market-data-simulator
-          # Docker image to run
-          image: market-data-simulator:latest
+          # Docker image from ECR - replace with your ECR repository URI
+          image: 480609332059.dkr.ecr.ap-southeast-1.amazonaws.com/market-data-simulator:latest
           # Use local image if available
           imagePullPolicy: IfNotPresent
           ports:

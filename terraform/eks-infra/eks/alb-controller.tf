@@ -91,6 +91,12 @@ resource "helm_release" "alb_controller" {
     value = module.vpc.vpc_id
   }
 
+  # Cost optimization: Run single replica in dev environment
+  set {
+    name  = "replicaCount"
+    value = "1"
+  }
+
   depends_on = [
     module.eks_cluster,
     aws_iam_role_policy_attachment.alb_attach
