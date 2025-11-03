@@ -1,0 +1,18 @@
+# Market Data Simulator Dependencies
+# All dependencies are part of Python standard library
+# This file is kept for documentation and future additions
+
+# Standard library modules used:
+# - socket (networking)
+# - threading (concurrency)
+# - time (timing)
+# - json (data serialization)
+# - logging (logging)
+# - random (random number generation)
+# - math (mathematical functions)
+# - datetime (date and time handling)
+# - typing (type hints)
+# - signal (signal handling)
+# - sys (system-specific parameters)
+
+# No external dependencies required!
