@@ -1,0 +1,82 @@
+---
+# Kubernetes Deployment - manages pod replicas
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  # Fixed name for standalone deployment
+  name: market-data-simulator
+  labels:
+    app: market-data-simulator
+spec:
+  # Run 2 replicas for high availability
+  replicas: 2
+  # Label selector to find pods managed by this deployment
+  selector:
+    matchLabels:
+      app: market-data-simulator
+  # Pod template specification
+  template:
+    metadata:
+      # Pod labels (must match selector above)
+      labels:
+        app: market-data-simulator
+    spec:
+      containers:
+        - name: market-data-simulator
+          # Docker image to run
+          image: market-data-simulator:latest
+          # Use local image if available
+          imagePullPolicy: IfNotPresent
+          ports:
+            # TCP port configuration
+            - name: tcp
+              containerPort: 9999
+              protocol: TCP
+          # Environment variables for application configuration
+          env:
+            - name: MARKET_DATA_HOST
+              value: "0.0.0.0" # Listen on all interfaces
+            - name: MARKET_DATA_PORT
+              value: "9999" # TCP port number
+          # Liveness probe: restart container if this fails
+          livenessProbe:
+            tcpSocket:
+              port: tcp
+            initialDelaySeconds: 10 # Wait 10s after startup
+            periodSeconds: 30 # Check every 30s
+          # Readiness probe: remove from service if this fails
+          readinessProbe:
+            tcpSocket:
+              port: tcp
+            initialDelaySeconds: 5 # Wait 5s after startup
+            periodSeconds: 10 # Check every 10s
+          # Resource limits and requests
+          resources:
+            # Guaranteed resources
+            requests:
+              cpu: 100m # 0.1 CPU cores
+              memory: 128Mi # 128 megabytes RAM
+            # Maximum resources
+            limits:
+              cpu: 500m # 0.5 CPU cores
+              memory: 256Mi # 256 megabytes RAM
+
+---
+# Kubernetes Service - provides stable network endpoint
+apiVersion: v1
+kind: Service
+metadata:
+  name: market-data-simulator
+  labels:
+    app: market-data-simulator
+spec:
+  # ClusterIP = internal only (no external IP assigned)
+  type: ClusterIP
+  ports:
+    - port: 9999 # Service port
+      targetPort: tcp # Routes to container port named "tcp"
+      protocol: TCP
+      name: tcp
+  # Routes traffic to pods with this label
+  selector:
+    app: market-data-simulator

@@ -1,0 +1,7 @@
+apiVersion: v2
+name: market-data-simulator
+description: Real-Time Market Data Simulator
+# Application chart (not a library chart)
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
