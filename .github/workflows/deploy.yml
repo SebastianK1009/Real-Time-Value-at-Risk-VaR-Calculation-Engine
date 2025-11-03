@@ -1,0 +1,143 @@
+name: Monorepo CI/CD to EKS (Helm)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/**"
+      - ".github/workflows/deploy.yml"
+
+env:
+  AWS_REGION: ap-southeast-1
+  EKS_CLUSTER_NAME: realtime-risk-dev
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      changed_services: ${{ steps.detect.outputs.changed_services }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2 # Need at least 2 commits to compare
+
+      - name: Detect changed services
+        id: detect
+        run: |
+          # Detect which apps changed using git diff
+          CHANGED=$(git diff --name-only HEAD~1 HEAD | grep '^apps/' | cut -d'/' -f2 | sort -u | tr '\n' ' ')
+          echo "Detected changes in: $CHANGED"
+
+          # Convert to JSON array format for matrix
+          if [ -n "$CHANGED" ]; then
+            SERVICES_JSON=$(echo $CHANGED | jq -R -s -c 'split(" ") | map(select(length > 0))')
+            echo "changed_services=$SERVICES_JSON" >> $GITHUB_OUTPUT
+          else
+            echo "changed_services=[]" >> $GITHUB_OUTPUT
+          fi
+
+  build-and-deploy:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.changed_services != '[]' && needs.detect-changes.outputs.changed_services != '' }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: ${{ fromJSON(needs.detect-changes.outputs.changed_services) }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get AWS Account ID
+        id: aws-account
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
+          echo "AWS Account ID: $ACCOUNT_ID"
+
+      - name: Create ECR repository if not exists
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: |
+          aws ecr describe-repositories --repository-names $SERVICE --region ${{ env.AWS_REGION }} 2>/dev/null || \
+          aws ecr create-repository --repository-name $SERVICE --region ${{ env.AWS_REGION }}
+          echo "ECR repository ready: $SERVICE"
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.aws-account.outputs.account_id }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+          IMAGE_TAG: ${{ github.sha }}
+          SERVICE: ${{ matrix.service }}
+        run: |
+          echo "Building Docker image for $SERVICE..."
+          cd apps/$SERVICE
+
+          # Build image
+          docker build -t $SERVICE:$IMAGE_TAG .
+
+          # Tag for ECR
+          docker tag $SERVICE:$IMAGE_TAG $ECR_REGISTRY/$SERVICE:$IMAGE_TAG
+          docker tag $SERVICE:$IMAGE_TAG $ECR_REGISTRY/$SERVICE:latest
+
+          # Push to ECR
+          docker push $ECR_REGISTRY/$SERVICE:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$SERVICE:latest
+
+          echo "Successfully pushed $ECR_REGISTRY/$SERVICE:$IMAGE_TAG"
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
+          kubectl cluster-info
+          kubectl get nodes
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.15.2
+
+      - name: Deploy with Helm
+        env:
+          ECR_REGISTRY: ${{ steps.aws-account.outputs.account_id }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+          IMAGE_TAG: ${{ github.sha }}
+          SERVICE: ${{ matrix.service }}
+        run: |
+          echo "Deploying $SERVICE to EKS..."
+
+          # Deploy using Helm
+          helm upgrade --install $SERVICE ./apps/$SERVICE/chart/$SERVICE \
+            --set image.repository=$ECR_REGISTRY/$SERVICE \
+            --set image.tag=$IMAGE_TAG \
+            --namespace default \
+            --create-namespace \
+            --wait \
+            --timeout 5m
+
+          echo "Deployment complete!"
+
+      - name: Verify Deployment
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: |
+          echo "Verifying deployment..."
+          kubectl get pods -l app=$SERVICE
+          kubectl get svc $SERVICE
+
+          # Wait for pods to be ready
+          kubectl wait --for=condition=ready pod -l app=$SERVICE --timeout=300s
+
+          echo "✅ Deployment verified successfully!"
