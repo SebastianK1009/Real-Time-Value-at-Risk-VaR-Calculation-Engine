@@ -18,9 +18,6 @@ cd apps/market-data-simulator
 docker build -t market-data-simulator:latest .
 ```
 
-<<<<<<< HEAD
-### 2. Deploy to Kubernetes
-=======
 ### 2. Push to Amazon ECR
 
 ```bash
@@ -40,7 +37,6 @@ docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/market-data-simula
 ```
 
 ### 3. Deploy to Kubernetes
->>>>>>> feature/001-iac
 
 **Option A: Using kubectl (Standalone YAML)**
 
@@ -86,18 +82,11 @@ python src/test_client.py
 ### Helm Values (values.yaml)
 
 ```yaml
-<<<<<<< HEAD
-replicaCount: 2
-
-image:
-  repository: market-data-simulator
-=======
 # Cost-optimized for small clusters
 replicaCount: 1
 
 image:
   repository: 480609332059.dkr.ecr.ap-southeast-1.amazonaws.com/market-data-simulator
->>>>>>> feature/001-iac
   tag: latest
   pullPolicy: IfNotPresent
 
@@ -114,11 +103,8 @@ resources:
     memory: 256Mi
 ```
 
-<<<<<<< HEAD
-=======
 **Note:** Replace `480609332059` with your AWS account ID.
 
->>>>>>> feature/001-iac
 ### Environment Variables
 
 - `MARKET_DATA_HOST`: Bind address (default: "0.0.0.0")
@@ -140,18 +126,11 @@ helm uninstall market-data-simulator
 
 ## Architecture
 
-<<<<<<< HEAD
-- **Deployment**: 2 replicas for high availability
-- **Service**: ClusterIP for internal cluster access
-- **Health Checks**: TCP socket probes on port 9999
-- **Resources**: CPU and memory limits for stability
-=======
 - **Deployment**: 1 replica (cost-optimized for small clusters)
 - **Service**: ClusterIP for internal cluster access
 - **Health Checks**: TCP socket probes on port 9999
 - **Resources**: CPU and memory limits for stability
 - **Container Registry**: Amazon ECR (free tier: 500 MB storage/month)
->>>>>>> feature/001-iac
 
 ## Instruments Streamed
 
@@ -196,8 +175,6 @@ This is a **minimal viable deployment** with only essential components. Advanced
 
 Add back advanced features as needed for production deployments.
 
-<<<<<<< HEAD
-=======
 ## Cost Optimization
 
 This deployment is optimized for cost on small EKS clusters:
@@ -242,7 +219,6 @@ helm upgrade market-data-simulator chart/market-data-simulator --set replicaCoun
 
 ---
 
->>>>>>> feature/001-iac
 ---
 
 ## 📦 Helm Chart & YAML Structure Explained
