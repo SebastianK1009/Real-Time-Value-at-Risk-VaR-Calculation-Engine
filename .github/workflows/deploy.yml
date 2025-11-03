@@ -3,7 +3,7 @@ name: Monorepo CI/CD to EKS (Helm)
 on:
   push:
     branches:
-      - main
+      - dev
     paths:
       - "apps/**"
       - ".github/workflows/deploy.yml"
