@@ -7,6 +7,12 @@ on:
     paths:
       - "apps/**"
       - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Service to deploy (leave empty for all changed services)"
+        required: false
+        type: string
 
 env:
   AWS_REGION: ap-southeast-1
@@ -27,6 +33,22 @@ jobs:
       - name: Detect changed services
         id: detect
         run: |
+          # Manual trigger with specific service
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "${{ github.event.inputs.service }}" ]; then
+            echo "Manual trigger for service: ${{ github.event.inputs.service }}"
+            SERVICES_JSON='["${{ github.event.inputs.service }}"]'
+            echo "changed_services=$SERVICES_JSON" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Manual trigger without service - deploy all services
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "Manual trigger for all services"
+            ALL_SERVICES=$(find apps -maxdepth 1 -mindepth 1 -type d -exec basename {} \; | jq -R -s -c 'split("\n") | map(select(length > 0))')
+            echo "changed_services=$ALL_SERVICES" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
           # Detect which apps changed using git diff
           CHANGED=$(git diff --name-only HEAD~1 HEAD | grep '^apps/' | cut -d'/' -f2 | sort -u | tr '\n' ' ')
           echo "Detected changes in: $CHANGED"
@@ -84,10 +106,9 @@ jobs:
           SERVICE: ${{ matrix.service }}
         run: |
           echo "Building Docker image for $SERVICE..."
-          cd apps/$SERVICE
 
-          # Build image
-          docker build -t $SERVICE:$IMAGE_TAG .
+          # Build image from apps/$SERVICE directory
+          docker build -t $SERVICE:$IMAGE_TAG -f apps/$SERVICE/Dockerfile apps/$SERVICE
 
           # Tag for ECR
           docker tag $SERVICE:$IMAGE_TAG $ECR_REGISTRY/$SERVICE:$IMAGE_TAG
@@ -97,7 +118,7 @@ jobs:
           docker push $ECR_REGISTRY/$SERVICE:$IMAGE_TAG
           docker push $ECR_REGISTRY/$SERVICE:latest
 
-          echo "Successfully pushed $ECR_REGISTRY/$SERVICE:$IMAGE_TAG"
+          echo "✅ Successfully pushed $ECR_REGISTRY/$SERVICE:$IMAGE_TAG"
 
       - name: Update kubeconfig
         run: |
