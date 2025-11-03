@@ -99,6 +99,9 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build, tag, and push Docker image
         env:
           ECR_REGISTRY: ${{ steps.aws-account.outputs.account_id }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
@@ -107,12 +110,14 @@ jobs:
         run: |
           echo "Building Docker image for $SERVICE..."
 
-          # Build image from apps/$SERVICE directory
-          docker build -t $SERVICE:$IMAGE_TAG -f apps/$SERVICE/Dockerfile apps/$SERVICE
-
-          # Tag for ECR
-          docker tag $SERVICE:$IMAGE_TAG $ECR_REGISTRY/$SERVICE:$IMAGE_TAG
-          docker tag $SERVICE:$IMAGE_TAG $ECR_REGISTRY/$SERVICE:latest
+          # Build image from apps/$SERVICE directory using buildx
+          docker buildx build \
+            -t $SERVICE:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$SERVICE:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$SERVICE:latest \
+            -f apps/$SERVICE/Dockerfile \
+            --load \
+            apps/$SERVICE
 
           # Push to ECR
           docker push $ECR_REGISTRY/$SERVICE:$IMAGE_TAG
