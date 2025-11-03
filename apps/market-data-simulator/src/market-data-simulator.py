@@ -90,16 +90,28 @@ class TCPMarketDataSimulator:
         
         # Initialize market data generators for various instruments
         self.instruments = {
+            # US Tech Stocks
             'AAPL': MarketDataGenerator('AAPL', 150.0, 0.025),
             'GOOGL': MarketDataGenerator('GOOGL', 2800.0, 0.03),
             'MSFT': MarketDataGenerator('MSFT', 300.0, 0.022),
             'TSLA': MarketDataGenerator('TSLA', 700.0, 0.05),
             'AMZN': MarketDataGenerator('AMZN', 3300.0, 0.028),
+            'NVDA': MarketDataGenerator('NVDA', 500.0, 0.045),
+            'META': MarketDataGenerator('META', 350.0, 0.035),
+            
+            # Indices
             'SPY': MarketDataGenerator('SPY', 450.0, 0.015),
+            'QQQ': MarketDataGenerator('QQQ', 380.0, 0.018),
+            
+            # Forex
             'EUR/USD': MarketDataGenerator('EUR/USD', 1.18, 0.008),
             'GBP/USD': MarketDataGenerator('GBP/USD', 1.38, 0.01),
+            'USD/JPY': MarketDataGenerator('USD/JPY', 110.0, 0.012),
+            
+            # Crypto
             'BTC/USD': MarketDataGenerator('BTC/USD', 45000.0, 0.08),
-            'ETH/USD': MarketDataGenerator('ETH/USD', 3000.0, 0.1)
+            'ETH/USD': MarketDataGenerator('ETH/USD', 3000.0, 0.1),
+            'SOL/USD': MarketDataGenerator('SOL/USD', 150.0, 0.12)
         }
         
         # Market data update interval (seconds)
