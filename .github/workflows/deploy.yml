@@ -1,12 +1,30 @@
-name: Monorepo CI/CD to EKS (Helm)
+# ============================================================================
+# CI/CD Workflow for Monorepo EKS Deployment using Helm
+# ============================================================================
+# Purpose: Automatically build, push, and deploy microservices to AWS EKS
+# 
+# Workflow Overview:
+# 1. Detect which services changed in the apps/ directory
+# 2. Build Docker images for changed services
+# 3. Push images to Amazon ECR (Elastic Container Registry)
+# 4. Deploy to EKS cluster using Helm charts
+#
+# Triggers:
+# - Automatic: Push to 'dev' branch with changes in apps/** or workflow file
+# - Manual: Use "Run workflow" button in GitHub Actions UI
+# ============================================================================
+
+name: CI/CD to EKS using Helm
 
 on:
   push:
     branches:
       - dev
     paths:
-      - "apps/**"
-      - ".github/workflows/deploy.yml"
+      - "apps/**"                          # Only trigger if apps change
+      - ".github/workflows/deploy.yml"     # Or if this workflow changes
+  
+  # Manual trigger: allows running workflow from GitHub Actions UI
   workflow_dispatch:
     inputs:
       service:
@@ -14,26 +32,41 @@ on:
         required: false
         type: string
 
+# Global environment variables available to all jobs
 env:
   AWS_REGION: ap-southeast-1
   EKS_CLUSTER_NAME: realtime-risk-dev
 
 jobs:
+  # ============================================================================
+  # Job 1: Detect Changed Services
+  # ============================================================================
+  # Determines which services need to be built and deployed based on:
+  # - Git diff (for automatic triggers)
+  # - User input (for manual triggers)
+  # - All services (for manual trigger without specific service)
+  # ============================================================================
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      changed_services: ${{ steps.detect.outputs.changed_services }}
+      # JSON will look like ["service1", "service2"]
+      changed_services: ${{ steps.detect.outputs.changed_services }}  # JSON array output
 
     steps:
+      # Checkout repository code
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2 # Need at least 2 commits to compare
+          fetch-depth: 2 # Need at least 2 commits to compare HEAD~1 vs HEAD
 
+      # Detect which services changed based on trigger type
       - name: Detect changed services
         id: detect
         run: |
-          # Manual trigger with specific service
+          # ========================================
+          # Scenario 1: Manual trigger with specific service
+          # ========================================
+          # User clicked "Run workflow" and entered a service name
           if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "${{ github.event.inputs.service }}" ]; then
             echo "Manual trigger for service: ${{ github.event.inputs.service }}"
             SERVICES_JSON='["${{ github.event.inputs.service }}"]'
@@ -41,38 +74,59 @@ jobs:
             exit 0
           fi
 
-          # Manual trigger without service - deploy all services
+          # ========================================
+          # Scenario 2: Manual trigger for ALL services
+          # ========================================
+          # User clicked "Run workflow" without entering a service name
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo "Manual trigger for all services"
+            # Find all directories in apps/ and convert to JSON array
             ALL_SERVICES=$(find apps -maxdepth 1 -mindepth 1 -type d -exec basename {} \; | jq -R -s -c 'split("\n") | map(select(length > 0))')
             echo "changed_services=$ALL_SERVICES" >> $GITHUB_OUTPUT
             exit 0
           fi
 
-          # Detect which apps changed using git diff
+          # ========================================
+          # Scenario 3: Automatic trigger (git push)
+          # ========================================
+          # Detect which apps changed using git diff between HEAD~1 and HEAD
           CHANGED=$(git diff --name-only HEAD~1 HEAD | grep '^apps/' | cut -d'/' -f2 | sort -u | tr '\n' ' ')
           echo "Detected changes in: $CHANGED"
 
-          # Convert to JSON array format for matrix
+          # Convert space-separated list to JSON array format for matrix strategy
           if [ -n "$CHANGED" ]; then
             SERVICES_JSON=$(echo $CHANGED | jq -R -s -c 'split(" ") | map(select(length > 0))')
             echo "changed_services=$SERVICES_JSON" >> $GITHUB_OUTPUT
           else
+            # No changes detected - output empty array
             echo "changed_services=[]" >> $GITHUB_OUTPUT
           fi
 
+  # ============================================================================
+  # Job 2: Build and Deploy Services
+  # ============================================================================
+  # This job runs in parallel for each changed service using matrix strategy
+  # Steps: Build Docker image → Push to ECR → Deploy to EKS with Helm
+  # ============================================================================
   build-and-deploy:
     needs: detect-changes
+    # Only run if there are services to deploy (non-empty array)
     if: ${{ needs.detect-changes.outputs.changed_services != '[]' && needs.detect-changes.outputs.changed_services != '' }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
+        # Deploy each service in parallel (e.g., ["market-data-simulator", "risk-engine"])
         service: ${{ fromJSON(needs.detect-changes.outputs.changed_services) }}
 
     steps:
+      # Checkout repository code
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # ========================================
+      # AWS Authentication
+      # ========================================
+      # Configure AWS credentials using GitHub secrets
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -80,6 +134,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      # Get AWS Account ID for constructing ECR registry URL
       - name: Get AWS Account ID
         id: aws-account
         run: |
@@ -87,30 +142,43 @@ jobs:
           echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
           echo "AWS Account ID: $ACCOUNT_ID"
 
+      # ========================================
+      # ECR Setup
+      # ========================================
+      # Create ECR repository if it doesn't exist (idempotent)
       - name: Create ECR repository if not exists
         env:
           SERVICE: ${{ matrix.service }}
         run: |
+          # Try to describe repository; if it fails, create it
           aws ecr describe-repositories --repository-names $SERVICE --region ${{ env.AWS_REGION }} 2>/dev/null || \
           aws ecr create-repository --repository-name $SERVICE --region ${{ env.AWS_REGION }}
           echo "ECR repository ready: $SERVICE"
 
+      # Login to Amazon ECR to enable docker push
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      # ========================================
+      # Docker Build and Push
+      # ========================================
+      # Set up Docker Buildx for advanced build features
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # Build Docker image and push to ECR
       - name: Build, tag, and push Docker image
         env:
           ECR_REGISTRY: ${{ steps.aws-account.outputs.account_id }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
-          IMAGE_TAG: ${{ github.sha }}
+          IMAGE_TAG: ${{ github.sha }}      # Use git commit SHA as image tag
           SERVICE: ${{ matrix.service }}
         run: |
           echo "Building Docker image for $SERVICE..."
 
-          # Build image from apps/$SERVICE directory using buildx
+          # Build multi-platform image with multiple tags
+          # -t: Tags the image with commit SHA and 'latest'
+          # --load: Loads image into Docker daemon (required for push)
           docker buildx build \
             -t $SERVICE:$IMAGE_TAG \
             -t $ECR_REGISTRY/$SERVICE:$IMAGE_TAG \
@@ -119,32 +187,48 @@ jobs:
             --load \
             apps/$SERVICE
 
-          # Push to ECR
+          # Push both tags to ECR (commit SHA and 'latest')
           docker push $ECR_REGISTRY/$SERVICE:$IMAGE_TAG
           docker push $ECR_REGISTRY/$SERVICE:latest
 
           echo "✅ Successfully pushed $ECR_REGISTRY/$SERVICE:$IMAGE_TAG"
 
+      # ========================================
+      # EKS Setup
+      # ========================================
+      # Update kubeconfig to connect to EKS cluster
       - name: Update kubeconfig
         run: |
+          # Configure kubectl to connect to the EKS cluster
           aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
+          
+          # Verify connection and display cluster info
           kubectl cluster-info
           kubectl get nodes
 
+      # Install Helm CLI for Kubernetes deployments
       - name: Install Helm
         uses: azure/setup-helm@v4
         with:
           version: v3.15.2
 
+      # ========================================
+      # Deploy to EKS using Helm
+      # ========================================
+      # Deploy or upgrade the service using Helm chart
       - name: Deploy with Helm
         env:
           ECR_REGISTRY: ${{ steps.aws-account.outputs.account_id }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
-          IMAGE_TAG: ${{ github.sha }}
+          IMAGE_TAG: ${{ github.sha }}      # Use commit SHA for image version
           SERVICE: ${{ matrix.service }}
         run: |
           echo "Deploying $SERVICE to EKS..."
 
-          # Deploy using Helm
+          # Deploy using Helm:
+          # - helm upgrade --install: Upgrades if exists, installs if not
+          # - --set: Override values in values.yaml
+          # - --wait: Wait for resources to be ready before marking as successful
+          # - --timeout 5m: Fail if deployment takes longer than 5 minutes
           helm upgrade --install $SERVICE ./apps/$SERVICE/chart/$SERVICE \
             --set image.repository=$ECR_REGISTRY/$SERVICE \
             --set image.tag=$IMAGE_TAG \
@@ -155,15 +239,22 @@ jobs:
 
           echo "Deployment complete!"
 
+      # ========================================
+      # Verify Deployment
+      # ========================================
+      # Check that pods are running and healthy
       - name: Verify Deployment
         env:
           SERVICE: ${{ matrix.service }}
         run: |
           echo "Verifying deployment..."
+          
+          # Display pods and service status
           kubectl get pods -l app=$SERVICE
           kubectl get svc $SERVICE
 
-          # Wait for pods to be ready
+          # Wait for pods to be in Ready state (max 5 minutes)
+          # This ensures the application is fully started and health checks pass
           kubectl wait --for=condition=ready pod -l app=$SERVICE --timeout=300s
 
           echo "✅ Deployment verified successfully!"
