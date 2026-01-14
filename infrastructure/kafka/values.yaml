@@ -1,0 +1,46 @@
+# Bitnami Kafka Chart Configuration
+# using KRaft mode (no ZooKeeper)
+
+# Use AWS ECR Public mirror to avoid Docker Hub rate limits and 404s
+image:
+  registry: public.ecr.aws
+  repository: bitnami/kafka
+  tag: "3.7"
+  pullPolicy: Always
+
+# Single Controller/Broker node for Low Resource / Dev environment
+controller:
+  replicaCount: 1
+  
+  # Minimal Resource limits for t2.micro
+  resources:
+    limits:
+      memory: 512Mi
+    requests:
+      memory: 256Mi
+      cpu: 100m
+
+  # Reduced JVM Heap settings
+  heapOpts: "-Xmx256m -Xms256m"
+  
+  persistence:
+    enabled: true
+    storageClass: "gp2"
+    size: 2Gi   # Reduced storage size
+
+# KRaft settings
+kraft:
+  enabled: true
+
+# Disable ZooKeeper
+zookeeper:
+  enabled: false
+
+# Listeners configuration
+listeners:
+  client:
+    protocol: PLAINTEXT
+  interbroker:
+    protocol: PLAINTEXT
+  controller:
+    protocol: PLAINTEXT

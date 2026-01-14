@@ -20,6 +20,13 @@ module "eks_cluster" {
   # Without this, EKS have no record of your IAM user in its aws-auth ConfigMap
   enable_cluster_creator_admin_permissions = true
 
+  cluster_addons = {
+    aws-ebs-csi-driver = {
+      most_recent = true
+      service_account_role_arn = module.ebs_csi_irsa_role.iam_role_arn
+    }
+  }
+
   # Add access for the root user (console access)
   access_entries = {
     root_user = {
@@ -59,12 +66,14 @@ module "vpc" {
   name = "${var.cluster_name}-vpc"
   cidr = "10.0.0.0/16"
 
+  # Reverted to 3 AZs (EKS cannot reduce AZs after creation)
+  # Cost savings are achieved via single_nat_gateway = true
   azs             = slice(data.aws_availability_zones.available.names, 0, 3)
   private_subnets = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
   public_subnets  = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
 
   enable_nat_gateway = true
-  single_nat_gateway = false
+  single_nat_gateway = true
   enable_dns_hostnames = true
   enable_dns_support   = true
 
