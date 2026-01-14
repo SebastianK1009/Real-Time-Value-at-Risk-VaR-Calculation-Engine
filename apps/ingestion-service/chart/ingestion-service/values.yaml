@@ -5,6 +5,10 @@ image:
   pullPolicy: IfNotPresent
   tag: "latest"
 
+service:
+  type: ClusterIP
+  port: 80
+
 env:
   simulatorHost: "market-data-simulator"
   simulatorPort: "9999"
