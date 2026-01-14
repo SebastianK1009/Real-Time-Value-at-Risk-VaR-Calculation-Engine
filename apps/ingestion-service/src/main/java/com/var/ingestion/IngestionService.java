@@ -41,6 +41,11 @@ public class IngestionService {
                 // Initialize Kafka Producer if needed
                 if (producer == null) {
                     producer = createKafkaProducer();
+                    if (producer == null) {
+                        logger.warn("Kafka Producer could not be created. Retrying in {} seconds...", RETRY_INTERVAL_SECONDS);
+                        Thread.sleep(TimeUnit.SECONDS.toMillis(RETRY_INTERVAL_SECONDS));
+                        continue;
+                    }
                 }
 
                 // Connect to Simulator
@@ -56,7 +61,12 @@ public class IngestionService {
                 // Read Loop
                 String line;
                 while ((line = reader.readLine()) != null) {
-                    processMessage(producer, line);
+                    if (producer != null) {
+                        processMessage(producer, line);
+                    } else {
+                        logger.error("Producer became null unexpectedly.");
+                        break;
+                    }
                 }
 
                 // If readLine returns null, connection closed
