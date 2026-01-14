@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ingestion-service.fullname" . }}
+  labels:
+    {{- include "ingestion-service.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "ingestion-service.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ingestion-service.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: SIMULATOR_HOST
+              value: {{ .Values.env.simulatorHost | quote }}
+            - name: SIMULATOR_PORT
+              value: {{ .Values.env.simulatorPort | quote }}
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: {{ .Values.env.kafkaBootstrapServers | quote }}
+            - name: KAFKA_TOPIC
+              value: {{ .Values.env.kafkaTopic | quote }}
+            - name: RETRY_INTERVAL
+              value: {{ .Values.env.retryInterval | quote }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

@@ -1,0 +1,38 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingestion-service
+  labels:
+    app: ingestion-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ingestion-service
+  template:
+    metadata:
+      labels:
+        app: ingestion-service
+    spec:
+      containers:
+        - name: ingestion-service
+          # Placeholder registry
+          image: 480609332059.dkr.ecr.ap-southeast-1.amazonaws.com/ingestion-service:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: SIMULATOR_HOST
+              value: "market-data-simulator"
+            - name: SIMULATOR_PORT
+              value: "9999"
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: "kafka:9092"
+            - name: KAFKA_TOPIC
+              value: "market_data"
+          resources:
+            limits:
+              memory: "512Mi" 
+              cpu: "1000m"
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
