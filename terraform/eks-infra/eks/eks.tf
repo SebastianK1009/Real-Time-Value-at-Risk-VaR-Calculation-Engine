@@ -20,6 +20,22 @@ module "eks_cluster" {
   # Without this, EKS have no record of your IAM user in its aws-auth ConfigMap
   enable_cluster_creator_admin_permissions = true
 
+  # Add access for the root user (console access)
+  access_entries = {
+    root_user = {
+      principal_arn     = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+
+      policy_associations = {
+        admin = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
+    }
+  }
+
   eks_managed_node_groups = {
     general = {
       instance_types = [var.node_instance_type]

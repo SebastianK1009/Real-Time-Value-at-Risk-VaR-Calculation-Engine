@@ -284,7 +284,7 @@ def main():
     simulator = TCPMarketDataSimulator(host=host, port=port)
     
     try:
-        simulator.start()
+        simulator.start() 
     except Exception as e:
         logger.error(f"Fatal error: {e}")
         sys.exit(1)
