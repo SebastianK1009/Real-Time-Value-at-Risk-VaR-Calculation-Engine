@@ -10,9 +10,9 @@ image:
 
 # Single Controller/Broker node for Low Resource / Dev environment
 controller:
-  replicaCount: 1
+  replicaCount: 1 # Runs only 1 Kafk broker pod, but low availability
   
-  # Minimal Resource limits for t2.micro
+  # Minimal Resources
   resources:
     limits:
       memory: 512Mi
@@ -21,26 +21,36 @@ controller:
       cpu: 100m
 
   # Reduced JVM Heap settings
-  heapOpts: "-Xmx256m -Xms256m"
+  # Kafka runs on Java. Adjusting heap size helps fit into low memory.
+  heapOpts: "-Xmx256m -Xms256m" # Sets Java Heap memory to exactly 256MB. 
+                                # Use constant size (Xmx == Xms) to prevent performance jitter from resizing.
   
   persistence:
-    enabled: true
-    storageClass: "gp2"
-    size: 2Gi   # Reduced storage size
+    enabled: true # If the pod crashes/restarts, data is preserved.
+    storageClass: "gp2" # Uses AWS EBS gp2 storage class
+    size: 2Gi   # Allocate 2Gi storage for Kafka data
 
 # KRaft settings
 kraft:
   enabled: true
 
 # Disable ZooKeeper
+# This saves money and resources, as you don't need a separate cluster just to manage metadata of Kafka.
 zookeeper:
   enabled: false
 
 # Listeners configuration
+# Defines how Kafka brokers communicate with clients and each other.
 listeners:
   client:
-    protocol: PLAINTEXT
+    protocol: PLAINTEXT 
   interbroker:
     protocol: PLAINTEXT
   controller:
     protocol: PLAINTEXT
+
+# Extra Environment Variables
+# Necessary for single-node cluster to function correctly without 3 replicas
+extraEnvVars:
+  - name: KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR
+    value: "1"
