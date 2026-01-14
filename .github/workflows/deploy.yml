@@ -176,20 +176,23 @@ jobs:
         run: |
           echo "Building Docker image for $SERVICE..."
 
+          # Navigate to service directory to simplify build context
+          cd apps/$SERVICE
+
           # Build multi-platform image with multiple tags
           # -t: Tags the image with commit SHA and 'latest'
           # --load: Loads image into Docker daemon (required for push)
+          # Note: We use '.' as the context since we cd'd into the directory
           docker buildx build \
-            -t $SERVICE:$IMAGE_TAG \
-            -t $ECR_REGISTRY/$SERVICE:$IMAGE_TAG \
-            -t $ECR_REGISTRY/$SERVICE:latest \
-            -f apps/$SERVICE/Dockerfile \
             --load \
-            apps/$SERVICE
+            -t "$SERVICE:$IMAGE_TAG" \
+            -t "$ECR_REGISTRY/$SERVICE:$IMAGE_TAG" \
+            -t "$ECR_REGISTRY/$SERVICE:latest" \
+            .
 
           # Push both tags to ECR (commit SHA and 'latest')
-          docker push $ECR_REGISTRY/$SERVICE:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$SERVICE:latest
+          docker push "$ECR_REGISTRY/$SERVICE:$IMAGE_TAG"
+          docker push "$ECR_REGISTRY/$SERVICE:latest"
 
           echo "✅ Successfully pushed $ECR_REGISTRY/$SERVICE:$IMAGE_TAG"
 
