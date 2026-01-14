@@ -90,7 +90,8 @@ jobs:
           # Scenario 3: Automatic trigger (git push)
           # ========================================
           # Detect which apps changed using git diff between HEAD~1 and HEAD
-          CHANGED=$(git diff --name-only HEAD~1 HEAD | grep '^apps/' | cut -d'/' -f2 | sort -u | tr '\n' ' ')
+          # tr -d '\n' removes newlines, preventing "invalid reference format" errors later
+          CHANGED=$(git diff --name-only HEAD~1 HEAD | grep '^apps/' | cut -d'/' -f2 | sort -u | tr '\n' ' ' | xargs)
           echo "Detected changes in: $CHANGED"
 
           # Convert space-separated list to JSON array format for matrix strategy
