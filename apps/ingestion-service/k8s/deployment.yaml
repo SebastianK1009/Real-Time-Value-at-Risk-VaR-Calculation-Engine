@@ -1,38 +1,58 @@
 ---
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: apps/v1      # The version of the Kubernetes API to use
+kind: Deployment         # The type of resource we are creating
 metadata:
-  name: ingestion-service
+  name: ingestion-service # The name of this deployment in the cluster
   labels:
-    app: ingestion-service
+    app: ingestion-service # Tags for organizing resources
 spec:
-  replicas: 1
-  selector:
+  replicas: 1            # Run exactly 1 copy of this application
+  selector:              # Rules for finding the Pods this deployment manages
     matchLabels:
       app: ingestion-service
-  template:
+  template:              # The "Cookie Cutter" used to create new Pods
     metadata:
       labels:
-        app: ingestion-service
+        app: ingestion-service # Must match the selector above!
     spec:
-      containers:
+      containers:        # The actual software running inside the Pod
         - name: ingestion-service
           # Placeholder registry
+          # The Docker image to download and run
           image: 480609332059.dkr.ecr.ap-southeast-1.amazonaws.com/ingestion-service:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: IfNotPresent # Don't re-download if we already have it
+          
+          # Environment Variables: Configuration injected into the code at runtime
           env:
             - name: SIMULATOR_HOST
-              value: "market-data-simulator"
+              value: "market-data-simulator" # How to find the Python simulator
             - name: SIMULATOR_PORT
               value: "9999"
             - name: KAFKA_BOOTSTRAP_SERVERS
-              value: "kafka:9092"
+              value: "kafka-cluster.kafka:9092" # The FQDN connection to Kafka
             - name: KAFKA_TOPIC
               value: "market_data"
+          # Compute Requirements
           resources:
-            limits:
+            limits:      # Hard cap: Kill the app if it exceeds this
               memory: "512Mi" 
-              cpu: "1000m"
-            requests:
+              cpu: "1000m" # (1 core)
+            requests:    # Soft cap: Only schedule on nodes with at least this much free
               memory: "256Mi"
-              cpu: "100m"
+              cpu: "100m" # (1/10th of a core)
+---                      # Separator between multiple documents in one file
+apiVersion: v1
+kind: Service
+metadata:
+  name: ingestion-service # Other apps can reach this app using this name
+  labels:
+    app: ingestion-service
+spec:
+  type: ClusterIP        # Internal only. Not accessible from the internet.
+  ports:
+    - port: 80           # The port the Service listens on
+      targetPort: 80     # The port the Container is listening on
+      protocol: TCP
+      name: http
+  selector:              # Traffic sent to this service...
+    app: ingestion-service # ...is routed to any Pod with this label
