@@ -1,5 +1,5 @@
 apiVersion: v2
-name: ingestion-service
+name: market-ingestion-service
 description: Java-based Ingestion Service for VaR Engine
 type: application
 version: 0.2.0

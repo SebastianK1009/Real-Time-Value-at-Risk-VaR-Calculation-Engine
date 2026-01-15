@@ -13,7 +13,10 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.Socket;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 public class IngestionService {
@@ -32,13 +35,18 @@ public class IngestionService {
     private static final String KAFKA_BOOTSTRAP_SERVERS = System.getenv().getOrDefault("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092");
     
     /** Kafka topic where market data messages are published */
-    private static final String KAFKA_TOPIC = System.getenv().getOrDefault("KAFKA_TOPIC", "market_data");
+    private static final String KAFKA_TOPIC = System.getenv().getOrDefault("KAFKA_TOPIC", "market.raw.prices");
+
+    /** Comma-separated list of tickers to subscribe to */
+    private static final Set<String> RELEVANT_TICKERS = new HashSet<>(Arrays.asList(
+            System.getenv().getOrDefault("RELEVANT_TICKERS", "AAPL,EUR/USD,SPY,BTC/USD,MSFT").split(",")
+    ));
     
     /** Retry interval in seconds when connection or producer initialization fails */
     private static final int RETRY_INTERVAL_SECONDS = Integer.parseInt(System.getenv().getOrDefault("RETRY_INTERVAL", "5"));
 
     public static void main(String[] args) {
-        logger.info("Starting Java Ingestion Service...");
+        logger.info("Starting Market Ingestion Service...");
         logger.info("Configuration: Simulator={}:{}, Kafka={}", SIMULATOR_HOST, SIMULATOR_PORT, KAFKA_BOOTSTRAP_SERVERS);
 
         KafkaProducer<String, String> producer = null;
@@ -130,19 +138,21 @@ public class IngestionService {
     }
 
     private static void processMessage(KafkaProducer<String, String> producer, String rawJson) {
-        try {
-            JsonNode root = objectMapper.readTree(rawJson); // Parse JSON
-            String type = root.path("type").asText(); // Get message type
-
-            if ("market_data".equals(type)) {
-                // Determine partition key (Symbol)
-                // String symbol = root.path("symbol").asText();
-                // We send the whole JSON as value
-                
-                // Using null key for round-robin or symbol as key for ordering?
-                // Let's use Null Key for now unless ordering per symbol is strictly required by partition
-                // producer.send(new ProducerRecord<>(KAFKA_TOPIC, symbol, rawJson));
-                
+        try {JsonNode data = root.path("data");
+                if (data.isArray()) {
+                    for (JsonNode tick : data) {
+                        String symbol = tick.path("symbol").asText();
+                        if (RELEVANT_TICKERS.contains(symbol)) {
+                            // Publish raw tick data, keyed by symbol
+                            String tickJson = objectMapper.writeValueAsString(tick);
+                            producer.send(new ProducerRecord<>(KAFKA_TOPIC, symbol, tickJson), (metadata, exception) -> {
+                                if (exception != null) {
+                                    logger.error("Kafka Write Error for {}: {}", symbol, exception.getMessage());
+                                }
+                            });
+                        }
+                    }
+                }
                 producer.send(new ProducerRecord<>(KAFKA_TOPIC, null, rawJson), (metadata, exception) -> {
                     if (exception != null) {
                         logger.error("Kafka Write Error: {}", exception.getMessage());
