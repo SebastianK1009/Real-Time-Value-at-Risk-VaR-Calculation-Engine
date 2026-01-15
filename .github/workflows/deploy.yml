@@ -20,6 +20,7 @@ on:
   push:
     branches:
       - dev
+      - "feature/**"
     paths:
       - "apps/**"                          # Only trigger if apps change
       - ".github/workflows/deploy.yml"     # Or if this workflow changes
