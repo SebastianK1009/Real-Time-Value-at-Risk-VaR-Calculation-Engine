@@ -12,6 +12,9 @@ resource "helm_release" "kafka" {
   version    = "29.3.14" # Pinned to the version that was working previously
   timeout    = 600
 
+  # Do not wait for Kafka pods to be ready before continuing
+  wait       = false
+
   # We use the existing values.yaml from the infrastructure folder
   # This ensures the configuration (image, resources, storage) stays consistent
   values = [

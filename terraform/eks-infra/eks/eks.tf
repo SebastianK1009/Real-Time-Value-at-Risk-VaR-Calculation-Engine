@@ -7,7 +7,10 @@ module "eks_cluster" {
   cluster_endpoint_public_access = true
 
   vpc_id     = module.vpc.vpc_id
-  subnet_ids = module.vpc.private_subnets
+
+  # For development purposes, using public subnets to avoid NAT gateway costs
+  # subnet_ids = module.vpc.private_subnets
+  subnet_ids = module.vpc.public_subnets
 
   # Enables OIDC provider for IRSA automatically to let your applications securely access AWS services
   # Allows pods to assume IAM roles using Kubernetes Service Accounts
@@ -72,8 +75,13 @@ module "vpc" {
   private_subnets = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
   public_subnets  = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
 
-  enable_nat_gateway = true
-  single_nat_gateway = true
+  # For cost savings during development, NAT gateway is disabled
+  # enable_nat_gateway = true
+  # single_nat_gateway = true
+
+  # Enable auto-assign public IP on public subnets
+  map_public_ip_on_launch = true
+
   enable_dns_hostnames = true
   enable_dns_support   = true
 
