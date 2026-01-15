@@ -93,11 +93,15 @@ jobs:
           # Detect which apps changed using git diff between HEAD~1 and HEAD
           # tr -d '\n' removes newlines, preventing "invalid reference format" errors later
           CHANGED=$(git diff --name-only HEAD~1 HEAD | grep '^apps/' | cut -d'/' -f2 | sort -u | tr '\n' ' ' | xargs)
+          
+          # Trim leading/trailing whitespace explicitly just in case
+          CHANGED=$(echo "$CHANGED" | xargs)
+          
           echo "Detected changes in: $CHANGED"
 
           # Convert space-separated list to JSON array format for matrix strategy
           if [ -n "$CHANGED" ]; then
-            SERVICES_JSON=$(echo $CHANGED | jq -R -s -c 'split(" ") | map(select(length > 0))')
+            SERVICES_JSON=$(echo -n "$CHANGED" | jq -R -s -c 'split(" ") | map(select(length > 0))')
             echo "changed_services=$SERVICES_JSON" >> $GITHUB_OUTPUT
           else
             # No changes detected - output empty array
