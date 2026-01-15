@@ -1,0 +1,25 @@
+replicaCount: 1
+
+image:
+  repository: 480609332059.dkr.ecr.ap-southeast-1.amazonaws.com/trade-data-simulator
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  port: 5000
+
+env:
+  simulatorHost: "market-data-simulator"
+  simulatorPort: "9999"
+  kafkaBootstrapServers: "kafka-cluster.kafka:9092"
+  kafkaTopic: "market_data"
+  retryInterval: "5"
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 256Mi
