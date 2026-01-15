@@ -13,7 +13,7 @@ FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
 
 # Copy the shaded jar
-COPY --from=builder /app/target/ingestion-service-1.0.0.jar app.jar
+COPY --from=builder /app/target/market-ingestion-service-1.0.0.jar app.jar
 
 # Environment defaults
 ENV SIMULATOR_HOST=market-data-simulator
