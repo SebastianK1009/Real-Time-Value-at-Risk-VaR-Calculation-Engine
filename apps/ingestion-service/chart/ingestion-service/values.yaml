@@ -12,7 +12,7 @@ service:
 env:
   simulatorHost: "market-data-simulator"
   simulatorPort: "9999"
-  kafkaBootstrapServers: "kafka:9092"
+  kafkaBootstrapServers: "kafka-cluster.kafka:9092"
   kafkaTopic: "market_data"
   retryInterval: "5"
 
