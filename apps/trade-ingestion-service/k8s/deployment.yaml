@@ -1,0 +1,35 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trade-ingestion-service
+  labels:
+    app: trade-ingestion-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trade-ingestion-service
+  template:
+    metadata:
+      labels:
+        app: trade-ingestion-service
+    spec:
+      containers:
+        - name: trade-ingestion-service
+          image: 480609332059.dkr.ecr.ap-southeast-1.amazonaws.com/trade-ingestion-service:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: OMS_URL
+              value: "http://trade-data-simulator:5000/trade-feed"
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: "kafka-cluster.kafka:9092"
+            - name: KAFKA_TOPIC
+              value: "trades.raw.events"
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi

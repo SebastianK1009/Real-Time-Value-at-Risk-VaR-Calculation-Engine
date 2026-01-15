@@ -1,0 +1,60 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trade-data-simulator
+  labels:
+    app: trade-data-simulator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trade-data-simulator
+  template:
+    metadata:
+      labels:
+        app: trade-data-simulator
+    spec:
+      containers:
+        - name: trade-data-simulator
+          image: 480609332059.dkr.ecr.ap-southeast-1.amazonaws.com/trade-data-simulator:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 5000
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trade-data-simulator
+  labels:
+    app: trade-data-simulator
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5000
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app: trade-data-simulator
