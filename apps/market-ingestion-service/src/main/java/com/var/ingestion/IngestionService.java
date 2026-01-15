@@ -138,7 +138,12 @@ public class IngestionService {
     }
 
     private static void processMessage(KafkaProducer<String, String> producer, String rawJson) {
-        try {JsonNode data = root.path("data");
+        try {
+            JsonNode root = objectMapper.readTree(rawJson);
+            String type = root.path("type").asText();
+
+            if ("market_data".equals(type)) {
+                JsonNode data = root.path("data");
                 if (data.isArray()) {
                     for (JsonNode tick : data) {
                         String symbol = tick.path("symbol").asText();
@@ -153,11 +158,6 @@ public class IngestionService {
                         }
                     }
                 }
-                producer.send(new ProducerRecord<>(KAFKA_TOPIC, null, rawJson), (metadata, exception) -> {
-                    if (exception != null) {
-                        logger.error("Kafka Write Error: {}", exception.getMessage());
-                    }
-                });
             } else if ("welcome".equals(type)) {
                 logger.info("Received Welcome: {}", root.path("message").asText());
             }
