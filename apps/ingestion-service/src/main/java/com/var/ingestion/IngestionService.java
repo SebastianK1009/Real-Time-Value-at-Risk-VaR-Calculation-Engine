@@ -21,11 +21,20 @@ public class IngestionService {
     private static final Logger logger = LoggerFactory.getLogger(IngestionService.class);
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
-    // Configuration
+    // Configuration - Connection and Topic Settings
+    /** Hostname of the market data simulator service */
     private static final String SIMULATOR_HOST = System.getenv().getOrDefault("SIMULATOR_HOST", "market-data-simulator");
+    
+    /** Port number for the simulator socket connection */
     private static final int SIMULATOR_PORT = Integer.parseInt(System.getenv().getOrDefault("SIMULATOR_PORT", "9999"));
+    
+    /** Kafka broker bootstrap servers for initial connection */
     private static final String KAFKA_BOOTSTRAP_SERVERS = System.getenv().getOrDefault("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092");
+    
+    /** Kafka topic where market data messages are published */
     private static final String KAFKA_TOPIC = System.getenv().getOrDefault("KAFKA_TOPIC", "market_data");
+    
+    /** Retry interval in seconds when connection or producer initialization fails */
     private static final int RETRY_INTERVAL_SECONDS = Integer.parseInt(System.getenv().getOrDefault("RETRY_INTERVAL", "5"));
 
     public static void main(String[] args) {
@@ -122,8 +131,8 @@ public class IngestionService {
 
     private static void processMessage(KafkaProducer<String, String> producer, String rawJson) {
         try {
-            JsonNode root = objectMapper.readTree(rawJson);
-            String type = root.path("type").asText();
+            JsonNode root = objectMapper.readTree(rawJson); // Parse JSON
+            String type = root.path("type").asText(); // Get message type
 
             if ("market_data".equals(type)) {
                 // Determine partition key (Symbol)
