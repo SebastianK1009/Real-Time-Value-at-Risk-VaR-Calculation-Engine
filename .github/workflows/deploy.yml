@@ -172,6 +172,8 @@ jobs:
       # Set up Docker Buildx for advanced build features
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker
 
       # Build Docker image and push to ECR
       - name: Build, tag, and push Docker image
