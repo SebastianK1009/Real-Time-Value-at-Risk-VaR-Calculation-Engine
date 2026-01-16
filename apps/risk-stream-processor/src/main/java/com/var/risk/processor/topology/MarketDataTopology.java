@@ -1,17 +1,22 @@
 package com.var.risk.processor.topology;
 
-import com.var.risk.processor.domain.EnrichedTick;
-import com.var.risk.processor.domain.MarketTick;
-import com.var.risk.processor.serdes.JsonSerde;
+import java.time.Duration;
+import java.time.Instant;
+
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StreamsBuilder;
-import org.apache.kafka.streams.kstream.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.kafka.streams.kstream.Consumed;
+import org.apache.kafka.streams.kstream.Grouped;
+import org.apache.kafka.streams.kstream.KStream;
+import org.apache.kafka.streams.kstream.Materialized;
+import org.apache.kafka.streams.kstream.Produced;
+import org.apache.kafka.streams.kstream.TimeWindows;
+import org.apache.kafka.streams.kstream.WindowedSerdes;
 
-import java.time.Duration;
-import java.time.Instant;
+import com.var.risk.processor.domain.EnrichedTick;
+import com.var.risk.processor.domain.MarketTick;
+import com.var.risk.processor.serdes.JsonSerde;
 
 public class MarketDataTopology {
     // Logger removed as it was unused

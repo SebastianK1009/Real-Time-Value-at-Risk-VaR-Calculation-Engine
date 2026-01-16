@@ -6,7 +6,7 @@ image:
   tag: "latest"
 
 serviceAccount:
-  create: true
+  create: false
   name: ""
 
 podAnnotations: {}
