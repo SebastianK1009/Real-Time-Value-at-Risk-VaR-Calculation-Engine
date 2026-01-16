@@ -1,0 +1,28 @@
+replicaCount: 1
+
+image:
+  repository: risk-stream-processor
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+serviceAccount:
+  create: true
+  name: ""
+
+podAnnotations: {}
+
+service:
+  type: ClusterIP
+  port: 80
+
+env:
+  kafkaBrokers: "kafka-cluster-kafka-bootstrap.kafka.svc:9092"
+  appId: "risk-stream-processor"
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
