@@ -48,6 +48,7 @@ Selector labels
 {{- define "risk-stream-processor.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "risk-stream-processor.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
+app: {{ include "risk-stream-processor.name" . }}
 {{- end }}
 
 {{/*
