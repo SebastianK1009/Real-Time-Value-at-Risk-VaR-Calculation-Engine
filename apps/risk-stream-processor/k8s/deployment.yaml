@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: risk-stream-processor
+  namespace: risk
+  labels:
+    app: risk-stream-processor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: risk-stream-processor
+  template:
+    metadata:
+      labels:
+        app: risk-stream-processor
+    spec:
+      containers:
+      - name: risk-stream-processor
+        image: risk-stream-processor:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: KAFKA_BROKERS
+          value: "kafka-cluster-kafka-bootstrap.kafka.svc:9092"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
