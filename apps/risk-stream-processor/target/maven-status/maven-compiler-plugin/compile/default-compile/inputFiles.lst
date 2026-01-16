@@ -1,0 +1,9 @@
+/Users/sebastian/Desktop/Real-Time-Value-at-Risk-VaR-Calculation-Engine/apps/risk-stream-processor/src/main/java/com/var/risk/processor/serdes/JsonSerde.java
+/Users/sebastian/Desktop/Real-Time-Value-at-Risk-VaR-Calculation-Engine/apps/risk-stream-processor/src/main/java/com/var/risk/processor/domain/MarketTick.java
+/Users/sebastian/Desktop/Real-Time-Value-at-Risk-VaR-Calculation-Engine/apps/risk-stream-processor/src/main/java/com/var/risk/processor/domain/PortfolioPosition.java
+/Users/sebastian/Desktop/Real-Time-Value-at-Risk-VaR-Calculation-Engine/apps/risk-stream-processor/src/main/java/com/var/risk/processor/topology/TradeAggregatorTopology.java
+/Users/sebastian/Desktop/Real-Time-Value-at-Risk-VaR-Calculation-Engine/apps/risk-stream-processor/src/main/java/com/var/risk/processor/Main.java
+/Users/sebastian/Desktop/Real-Time-Value-at-Risk-VaR-Calculation-Engine/apps/risk-stream-processor/src/main/java/com/var/risk/processor/domain/RiskPortfolioState.java
+/Users/sebastian/Desktop/Real-Time-Value-at-Risk-VaR-Calculation-Engine/apps/risk-stream-processor/src/main/java/com/var/risk/processor/domain/TradeEvent.java
+/Users/sebastian/Desktop/Real-Time-Value-at-Risk-VaR-Calculation-Engine/apps/risk-stream-processor/src/main/java/com/var/risk/processor/domain/EnrichedTick.java
+/Users/sebastian/Desktop/Real-Time-Value-at-Risk-VaR-Calculation-Engine/apps/risk-stream-processor/src/main/java/com/var/risk/processor/topology/MarketDataTopology.java
