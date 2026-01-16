@@ -16,7 +16,7 @@ service:
   port: 80
 
 env:
-  kafkaBrokers: "kafka-cluster-kafka-bootstrap.kafka.svc:9092"
+  kafkaBrokers: "kafka-cluster.kafka.svc:9092"
   appId: "risk-stream-processor"
 
 resources:
