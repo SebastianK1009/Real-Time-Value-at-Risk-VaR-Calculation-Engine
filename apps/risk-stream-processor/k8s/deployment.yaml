@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: risk-stream-processor
-  namespace: risk
+  namespace: default
   labels:
     app: risk-stream-processor
 spec:
@@ -17,15 +17,23 @@ spec:
     spec:
       containers:
       - name: risk-stream-processor
-        image: risk-stream-processor:latest
-        imagePullPolicy: IfNotPresent
+        image: 480609332059.dkr.ecr.ap-southeast-1.amazonaws.com/risk-stream-processor:latest
+        imagePullPolicy: Always
+        command: ["java", "-Dlog4j2.configurationFile=/etc/config/log4j2.properties", "-jar", "app.jar"]
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/config
         env:
         - name: KAFKA_BROKERS
-          value: "kafka-cluster-kafka-bootstrap.kafka.svc:9092"
+          value: "kafka-cluster.kafka.svc:9092"
         resources:
           requests:
-            memory: "512Mi"
-            cpu: "500m"
+            memory: "256Mi"
+            cpu: "250m"
           limits:
             memory: "1Gi"
             cpu: "1000m"
+      volumes:
+      - name: config-volume
+        configMap:
+          name: risk-logging-config
