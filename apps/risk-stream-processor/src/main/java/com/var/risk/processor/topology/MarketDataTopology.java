@@ -4,6 +4,7 @@ import com.var.risk.processor.domain.EnrichedTick;
 import com.var.risk.processor.domain.MarketTick;
 import com.var.risk.processor.serdes.JsonSerde;
 import org.apache.kafka.common.serialization.Serdes;
+import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.kstream.*;
 import org.slf4j.Logger;
@@ -69,7 +70,7 @@ public class MarketDataTopology {
             })
             
             // 6. Sink to Output Topic
-            .to(OUTPUT_TOPIC, Produced.with(WindowedSerdes.timeWindowedSerdeFrom(String.class, 1000L).keySerde(), JsonSerde.serde(EnrichedTick.class)));
+            .to(OUTPUT_TOPIC, Produced.with(WindowedSerdes.timeWindowedSerdeFrom(String.class, 1000L), JsonSerde.serde(EnrichedTick.class)));
             
             // Note: The key in the output topic will be Windowed<String>. 
             // Often downstream consumers prefer just String key. 
