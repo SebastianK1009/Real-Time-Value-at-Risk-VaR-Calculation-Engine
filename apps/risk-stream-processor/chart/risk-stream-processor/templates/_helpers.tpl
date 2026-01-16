@@ -49,3 +49,14 @@ Selector labels
 app.kubernetes.io/name: {{ include "risk-stream-processor.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
+
+{{/*
+Create the name of the service account to use
+*/}}
+{{- define "risk-stream-processor.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create }}
+{{- default (include "risk-stream-processor.fullname" .) .Values.serviceAccount.name }}
+{{- else }}
+{{- default "default" .Values.serviceAccount.name }}
+{{- end }}
+{{- end }}

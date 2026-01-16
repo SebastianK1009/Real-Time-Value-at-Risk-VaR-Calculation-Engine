@@ -15,7 +15,7 @@ spec:
       labels:
         {{- include "risk-stream-processor.selectorLabels" . | nindent 8 }}
     spec:
-      serviceAccountName: {{ .Values.serviceAccount.name | default (include "risk-stream-processor.fullname" .) }}
+      serviceAccountName: {{ include "risk-stream-processor.serviceAccountName" . }}
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
