@@ -14,7 +14,7 @@ import java.time.Duration;
 import java.time.Instant;
 
 public class MarketDataTopology {
-    private static final Logger logger = LoggerFactory.getLogger(MarketDataTopology.class);
+    // Logger removed as it was unused
     
     public static final String INPUT_TOPIC = "market.raw.prices";
     public static final String OUTPUT_TOPIC = "market.enriched";
