@@ -2,21 +2,21 @@
 apiVersion: apps/v1      # The version of the Kubernetes API to use
 kind: Deployment         # The type of resource we are creating
 metadata:
-  name: ingestion-service # The name of this deployment in the cluster
+  name: market-ingestion-service # The name of this deployment in the cluster
   labels:
-    app: ingestion-service # Tags for organizing resources
+    app: market-ingestion-service # Tags for organizing resources
 spec:
   replicas: 1            # Run exactly 1 copy of this application
   selector:              # Rules for finding the Pods this deployment manages
     matchLabels:
-      app: ingestion-service
+      app: market-ingestion-service
   template:              # The "Cookie Cutter" used to create new Pods
     metadata:
       labels:
-        app: ingestion-service # Must match the selector above!
+        app: market-ingestion-service # Must match the selector above!
     spec:
       containers:        # The actual software running inside the Pod
-        - name: ingestion-service
+        - name: market-ingestion-service
           # Placeholder registry
           # The Docker image to download and run
           image: 480609332059.dkr.ecr.ap-southeast-1.amazonaws.com/ingestion-service:latest
@@ -31,7 +31,7 @@ spec:
             - name: KAFKA_BOOTSTRAP_SERVERS
               value: "kafka-cluster.kafka:9092" # The FQDN connection to Kafka
             - name: KAFKA_TOPIC
-              value: "market_data"
+              value: "market.raw.prices"
           # Compute Requirements
           resources:
             limits:      # Hard cap: Kill the app if it exceeds this
@@ -44,9 +44,9 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: ingestion-service # Other apps can reach this app using this name
+  name: market-ingestion-service # Other apps can reach this app using this name
   labels:
-    app: ingestion-service
+    app: market-ingestion-service
 spec:
   type: ClusterIP        # Internal only. Not accessible from the internet.
   ports:
@@ -55,4 +55,4 @@ spec:
       protocol: TCP
       name: http
   selector:              # Traffic sent to this service...
-    app: ingestion-service # ...is routed to any Pod with this label
+    app: market-ingestion-service # ...is routed to any Pod with this label
