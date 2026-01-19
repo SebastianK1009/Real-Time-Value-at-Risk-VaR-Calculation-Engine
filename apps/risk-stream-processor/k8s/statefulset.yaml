@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: risk-stream-processor
+  namespace: default
+  labels:
+    app: risk-stream-processor
+spec:
+  serviceName: "risk-stream-processor-headless"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: risk-stream-processor
+  template:
+    metadata:
+      labels:
+        app: risk-stream-processor
+    spec:
+      containers:
+      - name: risk-stream-processor
+        image: 480609332059.dkr.ecr.ap-southeast-1.amazonaws.com/risk-stream-processor:latest
+        imagePullPolicy: Always
+        command: ["java", "-Dlog4j2.configurationFile=/etc/config/log4j2.properties", "-jar", "app.jar"]
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/config
+        - name: rocksdb-data
+          mountPath: /tmp/kafka-streams
+        env:
+        - name: KAFKA_BROKERS
+          value: "kafka-cluster.kafka.svc:9092"
+        - name: KAFKA_STREAMS_STATE_DIR
+          value: "/var/lib/kafka-streams"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+      volumes:
+      - name: config-volume
+        configMap:
+          name: risk-logging-config
+  volumeClaimTemplates:
+  - metadata:
+      name: rocksdb-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "gp2"
+      resources:
+        requests:
+          storage: 10Gi

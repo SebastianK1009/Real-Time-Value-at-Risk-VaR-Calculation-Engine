@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "risk-stream-processor.fullname" . }}-headless
+  labels:
+    {{- include "risk-stream-processor.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "risk-stream-processor.selectorLabels" . | nindent 4 }}

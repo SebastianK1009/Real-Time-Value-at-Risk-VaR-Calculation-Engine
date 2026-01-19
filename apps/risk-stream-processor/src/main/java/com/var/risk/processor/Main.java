@@ -26,7 +26,9 @@ public class Main {
         props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass());
         props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass());
         // Recommended for stateful operations (like aggregation/windowing)
-        props.put(StreamsConfig.STATE_DIR_CONFIG, "/tmp/kafka-streams");
+        // Allow override via ENV for Kubernetes StatefulSet volume mounting
+        String stateDir = System.getenv().getOrDefault("KAFKA_STREAMS_STATE_DIR", "/tmp/kafka-streams");
+        props.put(StreamsConfig.STATE_DIR_CONFIG, stateDir);
         props.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, 1000); // Commit often for demo purposes
         
         Topology topology = buildTopology();

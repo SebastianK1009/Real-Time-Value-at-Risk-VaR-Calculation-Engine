@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: risk-stream-processor
+  repository: 480609332059.dkr.ecr.ap-southeast-1.amazonaws.com/risk-stream-processor
   pullPolicy: IfNotPresent
   tag: "latest"
 
@@ -26,3 +26,10 @@ resources:
   requests:
     cpu: 250m
     memory: 256Mi
+
+persistence:
+  enabled: true
+  storageClass: "gp2"
+  size: 10Gi
+  mountPath: "/tmp/kafka-streams"
+
