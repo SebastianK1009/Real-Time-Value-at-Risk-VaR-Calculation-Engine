@@ -13,6 +13,7 @@ spec:
     metadata:
       labels:
         {{- include "risk-calculator-service.selectorLabels" . | nindent 8 }}
+        app: {{ include "risk-calculator-service.name" . }}
     spec:
       containers:
         - name: {{ .Chart.Name }}
