@@ -1,0 +1,6 @@
+apiVersion: v2
+name: risk-calculator-service
+description: A Helm chart for the Risk Calculator Service
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

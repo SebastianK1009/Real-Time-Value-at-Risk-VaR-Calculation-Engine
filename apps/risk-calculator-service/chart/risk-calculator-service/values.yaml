@@ -1,0 +1,17 @@
+replicaCount: 1
+
+image:
+  repository: risk-calculator-service
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+kafka:
+  bootstrapServers: "my-cluster-kafka-bootstrap.kafka.svc:9092"
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
