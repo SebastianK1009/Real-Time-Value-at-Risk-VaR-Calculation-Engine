@@ -16,6 +16,7 @@ import org.apache.kafka.streams.kstream.Produced;
 import org.apache.kafka.streams.kstream.Transformer;
 import org.apache.kafka.streams.processor.ProcessorContext;
 import org.apache.kafka.streams.state.KeyValueStore;
+import org.apache.kafka.streams.state.ValueAndTimestamp;
 
 import com.var.risk.calculator.domain.EnrichedPortfolioState;
 import com.var.risk.calculator.domain.EnrichedTick;
@@ -68,7 +69,7 @@ public class RiskCalculatorTopology {
 
     public static class PortfolioPricer implements Transformer<String, RiskPortfolioState, KeyValue<String, EnrichedPortfolioState>> {
         private final String storeName;
-        private KeyValueStore<String, EnrichedTick> marketStore;
+        private KeyValueStore<String, ValueAndTimestamp<EnrichedTick>> marketStore;
         private ProcessorContext context;
 
         public PortfolioPricer(String storeName) {
@@ -76,16 +77,18 @@ public class RiskCalculatorTopology {
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public void init(ProcessorContext context) {
             this.context = context;
-            this.marketStore = (KeyValueStore<String, EnrichedTick>) context.getStateStore(storeName);
+            this.marketStore = (KeyValueStore<String, ValueAndTimestamp<EnrichedTick>>) context.getStateStore(storeName);
         }
 
         @Override
         public KeyValue<String, EnrichedPortfolioState> transform(String key, RiskPortfolioState value) {
             List<EnrichedPortfolioState.EnrichedPosition> enrichedPositions = value.getPositions().values().stream()
                 .map(pos -> {
-                    EnrichedTick tick = marketStore.get(pos.getInstrument());
+                    ValueAndTimestamp<EnrichedTick> tickWithTs = marketStore.get(pos.getInstrument());
+                    EnrichedTick tick = (tickWithTs != null) ? tickWithTs.value() : null;
                     BigDecimal price = (tick != null) ? BigDecimal.valueOf(tick.getClose()) : BigDecimal.ZERO;
                     
                     return new EnrichedPortfolioState.EnrichedPosition(
