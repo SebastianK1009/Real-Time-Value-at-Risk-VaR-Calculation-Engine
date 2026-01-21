@@ -45,6 +45,8 @@ public class RiskCalculatorApp {
             log.info("Risk Calculator Service started");
             latch.await();
         } catch (Throwable e) {
+            log.error("Fatal error in Risk Calculator", e);
+            e.printStackTrace();
             System.exit(1);
         }
         System.exit(0);
