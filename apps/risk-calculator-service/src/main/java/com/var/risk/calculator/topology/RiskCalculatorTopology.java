@@ -45,7 +45,7 @@ public class RiskCalculatorTopology {
         // 2. Stream Portfolio State
         builder.stream(INPUT_TOPIC, Consumed.with(Serdes.String(), JsonSerde.serde(RiskPortfolioState.class)))
                 // 3. Enrich with Market Data
-                .transform(() -> new PortfolioPricer(MARKET_STORE), MARKET_STORE)
+                .transform(() -> new PortfolioPricer(MARKET_STORE))
                 .groupByKey()
                 .aggregate(
                         HistoricalWindow::new,
