@@ -10,6 +10,7 @@ import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.kstream.Consumed;
 import org.apache.kafka.streams.kstream.GlobalKTable;
+import org.apache.kafka.streams.kstream.Grouped;
 import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.kstream.Produced;
 import org.apache.kafka.streams.kstream.Transformer;
@@ -46,7 +47,7 @@ public class RiskCalculatorTopology {
         builder.stream(INPUT_TOPIC, Consumed.with(Serdes.String(), JsonSerde.serde(RiskPortfolioState.class)))
                 // 3. Enrich with Market Data
                 .transform(() -> new PortfolioPricer(MARKET_STORE))
-                .groupByKey()
+                .groupByKey(Grouped.with(Serdes.String(), JsonSerde.serde(EnrichedPortfolioState.class)))
                 .aggregate(
                         HistoricalWindow::new,
                         (key, value, aggregate) -> {
