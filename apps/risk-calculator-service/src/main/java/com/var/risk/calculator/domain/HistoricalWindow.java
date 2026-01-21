@@ -1,14 +1,15 @@
 package com.var.risk.calculator.domain;
 
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
 import java.util.ArrayList;
 import java.util.List;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class HistoricalWindow {
-    private List<PortfolioState> history = new ArrayList<>();
+    private List<EnrichedPortfolioState> history = new ArrayList<>();
 }

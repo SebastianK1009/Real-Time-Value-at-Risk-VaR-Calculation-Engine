@@ -10,15 +10,15 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class PortfolioState {
+public class EnrichedPortfolioState {
     private String portfolioId;
-    private List<Position> positions;
+    private List<EnrichedPosition> positions;
     private long timestamp;
 
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class Position {
+    public static class EnrichedPosition {
         private String symbol;
         private BigDecimal quantity;
         private BigDecimal currentPrice;

@@ -1,17 +1,18 @@
 package com.var.risk.calculator.service;
 
-import com.var.risk.calculator.domain.PortfolioState;
-import com.var.risk.calculator.domain.RiskResult;
-import org.apache.commons.math3.distribution.NormalDistribution;
-import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import org.apache.commons.math3.distribution.NormalDistribution;
+import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.var.risk.calculator.domain.EnrichedPortfolioState;
+import com.var.risk.calculator.domain.RiskResult;
 
 public class VaRCalculator {
     private static final Logger log = LoggerFactory.getLogger(VaRCalculator.class);
@@ -19,7 +20,7 @@ public class VaRCalculator {
     private static final double CONFIDENCE_LEVEL_99 = 0.99;
     private static final int MONTE_CARLO_SIMULATIONS = 1000;
 
-    public RiskResult calculate(String portfolioId, List<PortfolioState> history) {
+    public RiskResult calculate(String portfolioId, List<EnrichedPortfolioState> history) {
         if (history == null || history.size() < 2) {
             log.warn("Insufficient history for portfolio {}: {}", portfolioId, history != null ? history.size() : 0);
             return new RiskResult(portfolioId, BigDecimal.ZERO, BigDecimal.ZERO, System.currentTimeMillis());
@@ -62,7 +63,7 @@ public class VaRCalculator {
         );
     }
 
-    private double calculateTotalValue(PortfolioState state) {
+    private double calculateTotalValue(EnrichedPortfolioState state) {
         if (state.getPositions() == null) return 0.0;
         return state.getPositions().stream()
             .mapToDouble(p -> 
