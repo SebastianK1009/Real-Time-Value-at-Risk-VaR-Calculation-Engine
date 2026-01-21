@@ -16,14 +16,24 @@ public class TradeAggregatorTopology {
     public static final String OUTPUT_TOPIC = "risk.portfolio.state";
 
     public static void build(StreamsBuilder builder) {
+        /* [Technical Deep Dive: Processing Graph]
+         * Source Node for Trade Data.
+         */
         builder.stream(INPUT_TOPIC, Consumed.with(Serdes.String(), JsonSerde.serde(TradeEvent.class)))
-            // 1. Ensure Key is PortfolioId
+            /* [Technical Deep Dive: Rekeying / The "Mailbox Problem"]
+             * Routes all trades for "Portfolio A" to the same consumer thread.
+             * Ensures correct sequential processing of Buy/Sell orders.
+             */
             .selectKey((key, trade) -> trade.getPortfolioId())
             
             // 2. Group by Portfolio
             .groupByKey()
             
-            // 3. Aggregate State
+            /* [Technical Deep Dive: State Management (KeyValue Store)]
+             * Uses RocksDB "KeyValue Store (Ledger)".
+             * Data Lifespan: Permanent. Persists indefinitely unless explicitly deleted.
+             * Creates "RiskPortfolioState" which is the running total written in "pencil".
+             */
             .aggregate(
                 // Initializer
                 () -> new RiskPortfolioState(),

@@ -25,12 +25,19 @@ public class Main {
         props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, System.getenv().getOrDefault("KAFKA_BROKERS", "localhost:9092"));
         props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass());
         props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass());
-        // Recommended for stateful operations (like aggregation/windowing)
-        // Allow override via ENV for Kubernetes StatefulSet volume mounting
+
+        /* [Technical Deep Dive: State Management (RocksDB)]
+         * The "Brain" acts as Short-Term Memory.
+         * Stored locally on the container's disk (low latency) via RocksDB/JNI.
+         * K8s Note: If not backed by PVC, this is lost on pod restart (Ephemeral State).
+         */
         String stateDir = System.getenv().getOrDefault("KAFKA_STREAMS_STATE_DIR", "/tmp/kafka-streams");
         props.put(StreamsConfig.STATE_DIR_CONFIG, stateDir);
         props.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, 1000); // Commit often for demo purposes
         
+        /* [Technical Deep Dive: The Processing Graph] 
+         * Builds the Topology (DAG) of processing nodes. 
+         */
         Topology topology = buildTopology();
         logger.info("Topology description: {}", topology.describe());
         
@@ -59,7 +66,7 @@ public class Main {
         StreamsBuilder builder = new StreamsBuilder();
         
         // 1. Market Data Topology (Enrichment + OHLC)
-        MarketDataTopology.buildSimple(builder);
+        MarketDataTopology.build(builder);
         
         // 2. Trade Data Topology (Aggregation by Portfolio)
         TradeAggregatorTopology.build(builder);
