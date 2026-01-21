@@ -23,10 +23,19 @@ public class MarketDataTopology {
     public static final String OUTPUT_TOPIC = "market.enriched";
 
     public static void build(StreamsBuilder builder) {
-         // Step 1: Input Source
-         // Read raw market data from the Kafka topic 'market.raw.prices'
-         // Deserialize JSON data into MarketTick objects
-         builder.stream(INPUT_TOPIC, Consumed.with(Serdes.String(), JsonSerde.serde(MarketTick.class)))
+         // Step 1: Input Source - Modified to handle Batch JSON
+         builder.stream(INPUT_TOPIC, Consumed.with(Serdes.String(), JsonSerde.serde(com.fasterxml.jackson.databind.JsonNode.class)))
+            .flatMapValues(value -> {
+                java.util.List<MarketTick> ticks = new java.util.ArrayList<>();
+                if (value.has("data") && value.get("data").isArray()) {
+                    for (com.fasterxml.jackson.databind.JsonNode node : value.get("data")) {
+                        ticks.add(mapJsonToTick(node));
+                    }
+                } else if (value.has("symbol")) {
+                    ticks.add(mapJsonToTick(value));
+                }
+                return ticks;
+            })
             // Step 2: Rekey
             // Ensure data is partitioned by stock Symbol (e.g., "AAPL") so all ticks for a stock process together
             .selectKey((key, tick) -> tick.getSymbol())
@@ -67,6 +76,14 @@ public class MarketDataTopology {
             // Step 7: Output Sink
             // Write the processed, enriched data to the 'market.enriched' topic
             .to(OUTPUT_TOPIC, Produced.with(Serdes.String(), JsonSerde.serde(EnrichedTick.class)));
+    }
+
+    private static MarketTick mapJsonToTick(com.fasterxml.jackson.databind.JsonNode node) {
+        MarketTick tick = new MarketTick();
+        if (node.has("symbol")) tick.setSymbol(node.get("symbol").asText());
+        if (node.has("last")) tick.setLast(node.get("last").asDouble());
+        if (node.has("volume")) tick.setVolume(node.get("volume").asLong());
+        return tick;
     }
 
     private static EnrichedTick updateOHLC(String key, MarketTick tick, EnrichedTick agg) {
