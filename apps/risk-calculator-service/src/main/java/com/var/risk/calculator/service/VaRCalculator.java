@@ -26,12 +26,20 @@ public class VaRCalculator {
             return new RiskResult(portfolioId, BigDecimal.ZERO, BigDecimal.ZERO, System.currentTimeMillis());
         }
 
-        // 1. Calculate Portfolio Value for each snapshot in history
+        // ---------------------------------------------------------------------
+        // Step 5A: Time Series Construction
+        // Calculate the Total Dollar Value of the portfolio for every snapshot in history.
+        // T-3: $100k, T-2: $102k...
+        // ---------------------------------------------------------------------
         List<Double> portfolioValues = history.stream()
             .map(this::calculateTotalValue)
             .collect(Collectors.toList());
 
-        // 2. Calculate Returns
+        // ---------------------------------------------------------------------
+        // Step 5B: Returns Calculation
+        // Convert absolute dollar values into percentage returns.
+        // Formula: (Current - Prev) / Prev
+        // ---------------------------------------------------------------------
         List<Double> returns = new ArrayList<>();
         for (int i = 1; i < portfolioValues.size(); i++) {
             double prev = portfolioValues.get(i - 1);
@@ -47,10 +55,16 @@ public class VaRCalculator {
 
         double currentPortfolioValue = portfolioValues.get(portfolioValues.size() - 1);
 
-        // 3. Historical VaR
+        // ---------------------------------------------------------------------
+        // Step 6: Simulation Models (The Prediction)
+        // ---------------------------------------------------------------------
+
+        // Model 1: Historical VaR ("History Repeats Itself")
+        // Sorts returns and picks the worst 1%.
         double historicalVaR = calculateHistoricalVaR(returns, currentPortfolioValue, CONFIDENCE_LEVEL_99);
 
-        // 4. Monte Carlo VaR
+        // Model 2: Monte Carlo VaR ("Markets follow Bell Curve")
+        // Uses Mean and StdDev with Inverse CDF.
         double monteCarloVaR = calculateMonteCarloVaR(returns, currentPortfolioValue, CONFIDENCE_LEVEL_99);
 
         log.info("Calculated VaR for {}: Historical={}, MonteCarlo={}", portfolioId, historicalVaR, monteCarloVaR);
@@ -73,8 +87,15 @@ public class VaRCalculator {
             .sum();
     }
 
+    /**
+     * Simulation Model 1: Historical VaR
+     * Logic: Sorts actual historical returns and picks the one at the confidence threshold.
+     * Pros: Captures fat tails (real crashes).
+     * Cons: Sensitive to window size (goldfish memory).
+     */
     private double calculateHistoricalVaR(List<Double> returns, double currentValue, double confidenceLevel) {
         List<Double> sortedReturns = new ArrayList<>(returns);
+        // Step 6.1: Sort returns from Worst (-3.9%) to Best (+2.0%)
         Collections.sort(sortedReturns);
 
         // For confidence level 0.99 (99%), we look at the bottom 1% of returns.
@@ -87,6 +108,12 @@ public class VaRCalculator {
         return Math.abs(worstReturn * currentValue);
     }
 
+    /**
+     * Simulation Model 2: Monte Carlo (Parametric)
+     * Logic: Assumes returns follow a Normal Distribution (Bell Curve).
+     * Pros: Stable, smooth results.
+     * Cons: Underestimates black swan events (extreme crashes).
+     */
     private double calculateMonteCarloVaR(List<Double> returns, double currentValue, double confidenceLevel) {
         DescriptiveStatistics stats = new DescriptiveStatistics();
         returns.forEach(stats::addValue);

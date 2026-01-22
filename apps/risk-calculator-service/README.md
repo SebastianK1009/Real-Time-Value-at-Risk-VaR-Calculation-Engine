@@ -44,58 +44,110 @@ The `RiskCalculatorTopology` is designed as a triggered computation engine with 
     *   **Architecture**: Uses a **GlobalKTable**. This replicates the entire market state to *every* instance of the service.
     *   **Reasoning**: This allows any portfolio (on any partition) to instantly look up the price of any stock (e.g., AAPL) without complex re-partitioning or network hops during the calculation.
 
-### 2. The Enrichment Step (`PortfolioPricer`)
-Before calculation, the service performs a real-time join:
-1.  A Portfolio State event arrives (containing "User owns 50 AAPL").
-2.  The `PortfolioPricer` intercepts the message.
-3.  It queries the local `market-store` (GlobalKTable) for the absolute latest price of AAPL.
-4.  It updates the message with this fresh price.
-*   **Benefit**: If a portfolio hasn't traded for hours, its internal price data might be stale. This step ensures the VaR model always uses *current* market conditions.
+### End-to-End Analysis Path
+This section details the lifecycle of a single risk calculation, from the moment data lands in Kafka to the final Value at Risk metric.
 
-### 3. The Calculation Core (`VaRCalculator`)
-This is where the CPU cycles are spent.
-*   **Trigger**: The Kafka Streams DSL `.mapValues()` operation invokes the calculator for each window update.
-*   **Models**:
-    *   **Historical VaR (Non-Parametric)**:
-        *   **Logic**: Sorts the actual past returns of the portfolio from worst to best.
-        *   **Calculation**: Identifies the specific return at the percentile corresponding to the confidence level.
-            *   *Formula*: $\text{Index} = \lceil (1.0 - 0.99) \times \text{WindowSize} \rceil - 1$.
-            *   *Example (Window=100)*: Takes the **1st worst** return (Index 0).
-            *   *Example (Window=500)*: Takes the **5th worst** return (Index 4), effectively ignoring the top 4 extreme "crash" events as outliers.
-        *   **Behavior**: Captures "fat tails" and real market anomalies but can be highly sensitive to the specific sample size (Window Size).
-    *   **Monte Carlo / Parametric (Distribution-Based)**:
-        *   **Logic**: Assumes returns follow a Normal Distribution (Bell Curve).
-        *   **Calculation**: Computes the Mean ($\mu$) and Standard Deviation ($\sigma$) of the window's returns. It then uses the Inverse Cumulative Distribution Function to statistically determine the maximum loss threshold at 99% confidence.
-        *   **Behavior**: Produces smoother results less sensitive to single outliers, but may underestimate risk if the market behaves abnormally (non-Normal distribution).
-*   **Output**: A `RiskResult` object containing the computed metrics, pushed to `risk.model.results`.
+### Step 1: Storage (The Foundation)
+Before any calculation can happen, the system ensures all necessary market data is available locally on every computation node.
 
-### 4. The Impact of Volatility
-The results (VaR) are directly proportional to the **Volatility ($\sigma$)** of the portfolio's returns.
-*   **High Volatility (e.g., Crypto, TSLA)**:
-    *   **Effect**: The standard deviation of returns increases significantly.
-    *   **Result**: The "Bell Curve" flattens and widens, pushing the 99% confidence tail further to the left (larger potential loss). Both Historical and Monte Carlo VaR numbers will spike.
-*   **Low Volatility (e.g., Bonds, Blue Chips)**:
-    *   **Effect**: Returns are tightly clustered around the mean.
-    *   **Result**: The curve is tall and narrow. The 99% cumulative probability point is very close to the current value, resulting in a small VaR.
+*   **Input Components**:
+    *   **Topic**: `market.enriched` (The source of truth for prices).
+    *   **Mechanism**: `GlobalKTable`.
+    *   **Physical Store**: **RocksDB** of every pod (named `market-store`).
+*   **Detailed Mechanism**:
+    *   **Background Process**: The Kafka Streams library in your app has a background thread (the "Global Consumer").
+    *   **Trigger**: As soon as a message lands in `market.enriched`:
+        1.  The Global Consumer picks it up.
+        2.  It creates a key-value pair.
+        3.  It instantly writes/updates that row in the local **RocksDB**.
+    *   **Result**: Every pod has a complete, millisecond-fresh copy of the entire stock market (prices) on its local SSD, preventing the need for network lookups during hot-path processing.
 
-### 5. State Store Strategy
-*   **Custom Serdes**: Uses `JsonSerde` to serialize complex objects (`HistoricalWindow`, `PortfolioState`) into RocksDB.
-*   **Bounded State**: The topology explicitly limits the list size (`MAX_WINDOW_SIZE = 100`). This is crucial. Without this check, the `HistoricalWindow` object would grow indefinitely, eventually causing `OutOfMemoryError` or exceeding Kafka's default message size limits when backing up to the changelog.
-*   **Global State**: Uses a `GlobalKTable` backed by a local state store (`market-store`) to keep a materialized view of the latest market prices for efficient lookups.
+### Step 2: Ingestion & Trigger (The Event)
+The calculation is event-driven, triggered effectively whenever a portfolio changes.
 
-#### The Trade-off of Window Size
-The `MAX_WINDOW_SIZE` (currently 100) is a critical configuration lever that balances accuracy against system performance.
+*   **Input Component**:
+    *   **Topic**: `risk.portfolio.state`.
+    *   **Payload**: `RiskPortfolioState` (e.g., "Portfolio 'A' now holds 50 AAPL and 100 TSLA").
+*   **Action**:
+    1.  The stream consumer picks up the message.
+    2.  The "Key" is the Portfolio ID (ensuring all updates for Portfolio 'A' go to the same thread).
 
-| Impact Area | Small Window (e.g., 50-100) | Large Window (e.g., 1000+) |
-| :--- | :--- | :--- |
-| **Statistical Accuracy** | **Low**. Single outliers have massive influence (e.g., one crash in 100 ticks = 1% probability). Calculated VaR can be erratic. | **High**. Outliers are smoothed out over a larger dataset. Returns a more statistically significant "confidence level". |
-| **Responsiveness** | **High**. Rapidly adapts to new market conditions. "Forgets" old history quickly. | **Low**. Old data persists longer ("Memory Effect"), potentially masking recent market regime changes. |
-| **Infrastructure Cost** | **Low**. Minimal RAM usage. Tiny Kafka messages for state backup. | **Very High**. State objects grow linearly. Causes **Write Amplification** (sending 1MB state objects over the network every second) and increases JVM Heap pressure. |
+### Step 3: Enrichment (The Context)
+The portfolio state alone is useless without knowing what the assets are worth.
+*   **Component**: `PortfolioPricer` (Transformer).
+*   **The "Stream-Table Join"**:
+    1.  The `PortfolioPricer` receives the portfolio snapshot.
+    2.  It iterates through every asset (AAPL, TSLA).
+    3.  It queries the local RocksDB (`market-store`) for the latest price.
+    4.  It constructs an `EnrichedPortfolioState` where each asset has a `referencePrice` attached.
+
+### Step 4: State Accumulation (The Memory)
+VaR requires history, not just the present. We need to know how the portfolio *would have* performed in the past.
+*   **Component**: `.aggregate()` (Stateful Operation).
+*   **Store**: `HistoricalWindow` (in RocksDB).
+*   **Logic**:
+    1.  The logic retrieves the `HistoricalWindow` list for this portfolio from RocksDB.
+    2.  It appends the new `EnrichedPortfolioState` to the list.
+    3.  **Sliding Window**: If the list size exceeds `MAX_WINDOW_SIZE` (100), the oldest entry is dropped (FIFO).
+    4.  The updated list is saved back to RocksDB.
+
+### Step 5: The Math Core (The Valuation)
+Once the window is updated, the system passes the entire list of 100 snapshots to the `VaRCalculator`.
+
+**A. Time Series Construction**
+It calculates the Total Portfolio Value for every snapshot in history.
+*   *T-3*: $100,000 (Based on old prices)
+*   *T-2*: $102,000
+*   *T-1*: $98,000
+*   *T-0*: $99,000 (Current)
+
+**B. Returns Calculation**
+It converts absolute values into percentage returns to normalize the data.
+*   *Formula*: $Return_t = \frac{Value_t - Value_{t-1}}{Value_{t-1}}$
+*   *Result*: `[+2.0%, -3.9%, +1.0%, ...]`
+
+### Step 6: Simulation Models (The Prediction)
+Now that we have the distribution of returns, we run two parallel models to predict the "Worst Case" (99% confidence).
+
+**Model 1: Historical Simulation**
+*   **Concept**: "History repeats itself."
+*   **Mechanism**:
+    1.  Sort the returns: `[-3.9%, -0.5%, +1.0%, +2.0%]`
+    2.  Pick the 1st percentile (worst 1% event).
+    3.  Result: **-3.9%**.
+*   **Pros/Cons**:
+    *   **Pro (Realism)**: It uses actual past data. If a crash happened, it's included. It doesn't rely on theoretical assumptions.
+    *   **Con (Jumpy)**: With a small window (100 ticks), "goldfish memory" is an issue. If a crash slides out of the window, risk drops instantly, even if the market is still dangerous.
+
+**Model 2: Monte Carlo (Parametric)**
+*   **Concept**: "Markets follow a Bell Curve."
+*   **Mechanism**:
+    1.  Calculate Mean ($\mu$) and volatility/Standard Deviation ($\sigma$).
+    2.  Use the statistical Inverse CDF function to find the 99% boundary.
+*   **Pros/Cons**:
+    *   **Pro (Stability)**: It smooths out the data by fitting it to a mathematical curve. One bad data point won't ruin the calculation.
+    *   **Con (Naive)**: It assumes crashes are statistically impossible (Normal Distribution). In reality, markets crash often ("Fat Tails"), so this model tends to be too optimistic.
+
+### Technical Trade-Offs
+
+#### 1. The Cost of "Window Size"
+The `MAX_WINDOW_SIZE` (currently 100) is the most critical configuration.
+*   **100 Ticks**:
+    *   *Pros*: Fast, low RAM, low network usage.
+    *   *Cons*: Statistical noise. A single bad tick represents 1% probability, making the VaR jumpy.
+*   **1000+ Ticks**:
+    *   *Pros*: Smooth, statistically valid results.
+    *   *Cons*: **Write Amplification**. Every update requires serializing/deserializing a massive list and sending it over the network (Kafka Changelog), crushing performance.
+
+#### 2. The Impact of Volatility
+The system is highly sensitive to market volatility ($\sigma$).
+*   If a stock like TSLA starts moving erratically, the Standard Deviation of the `HistoricalWindow` increases immediately.
+*   This causes the "Bell Curve" to widen, pushing the 99% cutoff point further down, automatically increasing the reported Value at Risk.
 
 ### Key Differences from Stream Processor
 | Feature | Risk Stream Processor | Risk Calculator Service |
 | :--- | :--- | :--- |
-| **Primary Goal** | Data Normalization & Reduction | complex Mathematical Computation |
+| **Primary Goal** | Data Normalization & Reduction | Complex Mathematical Computation |
 | **State Type** | Aggregates (Sums, OHLC) | Collections (Lists/Windows of History) |
-| **CPU Profile** | low (I/O Bound) | High (CPU Bound) |
+| **CPU Profile** | Low (I/O Bound) | High (CPU Bound) |
 | **Scale Strategy** | Scale by Partition count | Scale by CPU availability (Vertical or Horizontal) |

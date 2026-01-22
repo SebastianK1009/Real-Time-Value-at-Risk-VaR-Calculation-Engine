@@ -37,23 +37,43 @@ public class RiskCalculatorTopology {
     public static void build(StreamsBuilder builder) {
         VaRCalculator calculator = new VaRCalculator();
 
-        // 1. GlobalKTable for Market Data
+        // -------------------------------------------------------------------------
+        // Step 1: Storage (The Foundation)
+        // GlobalKTable for Market Data backed by RocksDB ("market-store").
+        // Ensures every pod has local access to the entire stock market state.
+        // See README.md "Step 1: Storage"
+        // -------------------------------------------------------------------------
         GlobalKTable<String, EnrichedTick> marketTable = builder.globalTable(
             MARKET_TOPIC,
             Consumed.with(Serdes.String(), JsonSerde.serde(EnrichedTick.class)),
             Materialized.as(MARKET_STORE)
         );
 
-        // 2. Stream Portfolio State
+        // -------------------------------------------------------------------------
+        // Step 2: Ingestion & Trigger (The Event)
+        // Consumes portfolio snapshots. This triggers the calculation logic.
+        // -------------------------------------------------------------------------
         builder.stream(INPUT_TOPIC, Consumed.with(Serdes.String(), JsonSerde.serde(RiskPortfolioState.class)))
-                // 3. Enrich with Market Data
+                
+                // ---------------------------------------------------------------------
+                // Step 3: Enrichment (The Context)
+                // Performs the "Stream-Table Join" to attach real-time market prices
+                // to the portfolio assets using the local RocksDB store.
+                // ---------------------------------------------------------------------
                 .transform(() -> new PortfolioPricer(MARKET_STORE))
                 .groupByKey(Grouped.with(Serdes.String(), JsonSerde.serde(EnrichedPortfolioState.class)))
+                
+                // ---------------------------------------------------------------------
+                // Step 4: State Accumulation (The Memory)
+                // Maintains the Sliding Window of history (Last 100 ticks).
+                // Uses RocksDB to persist the list.
+                // ---------------------------------------------------------------------
                 .aggregate(
                         HistoricalWindow::new,
                         (key, value, aggregate) -> {
                             List<EnrichedPortfolioState> list = new ArrayList<>(aggregate.getHistory());
                             list.add(value);
+                            // Sliding Window Logic: Drop oldest if > MAX_WINDOW_SIZE
                             if (list.size() > MAX_WINDOW_SIZE) {
                                 list.remove(0);
                             }
@@ -63,6 +83,11 @@ public class RiskCalculatorTopology {
                         Materialized.with(Serdes.String(), JsonSerde.serde(HistoricalWindow.class))
                 )
                 .toStream()
+                
+                // ---------------------------------------------------------------------
+                // Step 5 & 6: Math Core & Simulation Models
+                // Calculates Value, Returns, and runs Historical + Monte Carlo VaR models.
+                // ---------------------------------------------------------------------
                 .mapValues((key, window) -> calculator.calculate(key, window.getHistory()))
                 .to(OUTPUT_TOPIC, Produced.with(Serdes.String(), JsonSerde.serde(RiskResult.class)));
     }
@@ -80,13 +105,21 @@ public class RiskCalculatorTopology {
         @SuppressWarnings("unchecked")
         public void init(ProcessorContext context) {
             this.context = context;
+            // Get access to the local RocksDB store configured in the topology builder
             this.marketStore = (KeyValueStore<String, ValueAndTimestamp<EnrichedTick>>) context.getStateStore(storeName);
         }
 
+        /**
+         * Step 3 Logic: The Stream-Table Join
+         * Iterates over every position in the portfolio and finds the current market price
+         * from the local state store.
+         */
         @Override
         public KeyValue<String, EnrichedPortfolioState> transform(String key, RiskPortfolioState value) {
             List<EnrichedPortfolioState.EnrichedPosition> enrichedPositions = value.getPositions().values().stream()
                 .map(pos -> {
+                    // FAST LOOKUP: Reads specifically from the local RocksDB instance on this pod.
+                    // No network call. < 1ms latency.
                     ValueAndTimestamp<EnrichedTick> tickWithTs = marketStore.get(pos.getInstrument());
                     EnrichedTick tick = (tickWithTs != null) ? tickWithTs.value() : null;
                     BigDecimal price = (tick != null) ? BigDecimal.valueOf(tick.getClose()) : BigDecimal.ZERO;
