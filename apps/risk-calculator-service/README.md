@@ -56,14 +56,41 @@ Before calculation, the service performs a real-time join:
 This is where the CPU cycles are spent.
 *   **Trigger**: The Kafka Streams DSL `.mapValues()` operation invokes the calculator for each window update.
 *   **Models**:
-    *   **Historical VaR**: Looks at the specific returns of the assets in the portfolio over the stored window.
-    *   **Monte Carlo**: Generates random market scenarios based on statistical properties (mean, variance) derived from the window.
+    *   **Historical VaR (Non-Parametric)**:
+        *   **Logic**: Sorts the actual past returns of the portfolio from worst to best.
+        *   **Calculation**: Identifies the specific return at the percentile corresponding to the confidence level.
+            *   *Formula*: $\text{Index} = \lceil (1.0 - 0.99) \times \text{WindowSize} \rceil - 1$.
+            *   *Example (Window=100)*: Takes the **1st worst** return (Index 0).
+            *   *Example (Window=500)*: Takes the **5th worst** return (Index 4), effectively ignoring the top 4 extreme "crash" events as outliers.
+        *   **Behavior**: Captures "fat tails" and real market anomalies but can be highly sensitive to the specific sample size (Window Size).
+    *   **Monte Carlo / Parametric (Distribution-Based)**:
+        *   **Logic**: Assumes returns follow a Normal Distribution (Bell Curve).
+        *   **Calculation**: Computes the Mean ($\mu$) and Standard Deviation ($\sigma$) of the window's returns. It then uses the Inverse Cumulative Distribution Function to statistically determine the maximum loss threshold at 99% confidence.
+        *   **Behavior**: Produces smoother results less sensitive to single outliers, but may underestimate risk if the market behaves abnormally (non-Normal distribution).
 *   **Output**: A `RiskResult` object containing the computed metrics, pushed to `risk.model.results`.
 
-### 4. State Store Strategy
+### 4. The Impact of Volatility
+The results (VaR) are directly proportional to the **Volatility ($\sigma$)** of the portfolio's returns.
+*   **High Volatility (e.g., Crypto, TSLA)**:
+    *   **Effect**: The standard deviation of returns increases significantly.
+    *   **Result**: The "Bell Curve" flattens and widens, pushing the 99% confidence tail further to the left (larger potential loss). Both Historical and Monte Carlo VaR numbers will spike.
+*   **Low Volatility (e.g., Bonds, Blue Chips)**:
+    *   **Effect**: Returns are tightly clustered around the mean.
+    *   **Result**: The curve is tall and narrow. The 99% cumulative probability point is very close to the current value, resulting in a small VaR.
+
+### 5. State Store Strategy
 *   **Custom Serdes**: Uses `JsonSerde` to serialize complex objects (`HistoricalWindow`, `PortfolioState`) into RocksDB.
 *   **Bounded State**: The topology explicitly limits the list size (`MAX_WINDOW_SIZE = 100`). This is crucial. Without this check, the `HistoricalWindow` object would grow indefinitely, eventually causing `OutOfMemoryError` or exceeding Kafka's default message size limits when backing up to the changelog.
 *   **Global State**: Uses a `GlobalKTable` backed by a local state store (`market-store`) to keep a materialized view of the latest market prices for efficient lookups.
+
+#### The Trade-off of Window Size
+The `MAX_WINDOW_SIZE` (currently 100) is a critical configuration lever that balances accuracy against system performance.
+
+| Impact Area | Small Window (e.g., 50-100) | Large Window (e.g., 1000+) |
+| :--- | :--- | :--- |
+| **Statistical Accuracy** | **Low**. Single outliers have massive influence (e.g., one crash in 100 ticks = 1% probability). Calculated VaR can be erratic. | **High**. Outliers are smoothed out over a larger dataset. Returns a more statistically significant "confidence level". |
+| **Responsiveness** | **High**. Rapidly adapts to new market conditions. "Forgets" old history quickly. | **Low**. Old data persists longer ("Memory Effect"), potentially masking recent market regime changes. |
+| **Infrastructure Cost** | **Low**. Minimal RAM usage. Tiny Kafka messages for state backup. | **Very High**. State objects grow linearly. Causes **Write Amplification** (sending 1MB state objects over the network every second) and increases JVM Heap pressure. |
 
 ### Key Differences from Stream Processor
 | Feature | Risk Stream Processor | Risk Calculator Service |
