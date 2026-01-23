@@ -2,7 +2,12 @@ REGION := ap-southeast-1
 CLUSTER_NAME := realtime-risk-dev
 APPS_DIR := ../../apps
 
-.PHONY: up down plan cost deploy-helm deploy-raw deploy uninstall-helm undeploy-raw verify
+.PHONY: up down plan cost deploy-helm deploy-raw deploy uninstall-helm undeploy-raw verify update-kubeconfig
+
+# Update kubeconfig with current cluster endpoint (prevents stale endpoint errors)
+update-kubeconfig:
+	aws eks update-kubeconfig --name $(CLUSTER_NAME) --region $(REGION)
+	@echo "Kubeconfig updated successfully."
 
 # Default up uses Helm
 up: up-helm
@@ -26,7 +31,7 @@ up-raw:
 	@echo "Global deployment via Raw Manifests complete."
 
 # Deploy using Helm Charts
-deploy-helm:
+deploy-helm: update-kubeconfig
 	@echo "Deploying Services via Helm..."
 	# Cleanup raw manifests to avoid conflicts
 	$(MAKE) undeploy-raw || true
@@ -40,7 +45,7 @@ deploy-helm:
 	@echo "All services deployed via Helm."
 
 # Deploy using Raw Manifests (deployment.yaml)
-deploy-raw:
+deploy-raw: update-kubeconfig
 	@echo "Deploying Services via Raw Manifests..."
 	# Cleanup helm releases to avoid conflicts
 	$(MAKE) uninstall-helm || true
@@ -81,6 +86,6 @@ cost:
 	# Requires infracost installation: brew install infracost
 	infracost breakdown --path .
 	
-verify:
+verify: update-kubeconfig
 	kubectl get pods
 	kubectl get services

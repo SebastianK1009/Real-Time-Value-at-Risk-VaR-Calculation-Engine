@@ -30,10 +30,24 @@ module "eks_cluster" {
     }
   }
 
-  # Add access for the root user (console access)
+  # Add access for the root user (console access) and specific IAM user
   access_entries = {
     root_user = {
       principal_arn     = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+
+      policy_associations = {
+        admin = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
+    }
+
+    # Add explicit access for the sebastian IAM user
+    sebastian_user = {
+      principal_arn     = "arn:aws:iam::480609332059:user/sebastian"
 
       policy_associations = {
         admin = {

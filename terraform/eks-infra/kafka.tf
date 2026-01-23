@@ -23,6 +23,6 @@ resource "helm_release" "kafka" {
 
   # Ensure EKS is fully ready before deploying
   depends_on = [
-    module.eks
+    kubernetes_namespace.kafka
   ]
 }
