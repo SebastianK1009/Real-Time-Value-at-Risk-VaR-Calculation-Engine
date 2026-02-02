@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 
 import com.var.risk.calculator.domain.EnrichedPortfolioState;
 import com.var.risk.calculator.domain.RiskPortfolioState;
+import com.var.risk.calculator.domain.PortfolioPosition;
 import com.var.risk.calculator.domain.RiskResult;
 import com.var.risk.calculator.repository.MarketDataRepository;
 
@@ -30,7 +31,7 @@ public class StatelessVaRCalculator {
 
     public RiskResult calculate(String portfolioId, RiskPortfolioState portfolio) {
         // 1. Extract symbols
-        Map<String, RiskPortfolioState.Position> positions = portfolio.getPositions();
+        Map<String, PortfolioPosition> positions = portfolio.getPositions();
         if (positions == null || positions.isEmpty()) {
             return new RiskResult(portfolioId, BigDecimal.ZERO, BigDecimal.ZERO, System.currentTimeMillis());
         }
@@ -57,7 +58,7 @@ public class StatelessVaRCalculator {
 
         for (int i = 0; i < minHistorySize; i++) {
             double totalValueAtT = 0.0;
-            for (Map.Entry<String, RiskPortfolioState.Position> entry : positions.entrySet()) {
+            for (Map.Entry<String, PortfolioPosition> entry : positions.entrySet()) {
                 String symbol = entry.getKey();
                 double qty = entry.getValue().getNetQuantity();
                 List<BigDecimal> prices = marketHistory.get(symbol);
