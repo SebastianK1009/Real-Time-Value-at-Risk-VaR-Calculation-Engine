@@ -17,6 +17,8 @@
     </properties>
 
     <dependencies>
+
+
         <!-- Kafka Client -->
         <dependency>
             <groupId>org.apache.kafka</groupId>
@@ -44,11 +46,8 @@
         </dependency>
 
         <!-- Database -->
-        <dependency>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
-            <version>42.7.2</version>
-        </dependency>
+        <!-- Removed Postgres Dependency as this service is now Kafka Producer only -->
+
         <dependency>
             <groupId>com.zaxxer</groupId>
             <artifactId>HikariCP</artifactId>

@@ -33,7 +33,7 @@ public class IngestionService {
     private static final int SIMULATOR_PORT = Integer.parseInt(System.getenv().getOrDefault("SIMULATOR_PORT", "9999"));
     
     /** Kafka broker bootstrap servers for initial connection */
-    private static final String KAFKA_BOOTSTRAP_SERVERS = System.getenv().getOrDefault("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092");
+    private static final String KAFKA_BOOTSTRAP_SERVERS = System.getenv().getOrDefault("KAFKA_BOOTSTRAP_SERVERS", "kafka-cluster.kafka:9092");
     
     /** Kafka topic where market data messages are published */
     private static final String KAFKA_TOPIC = System.getenv().getOrDefault("KAFKA_TOPIC", "market.raw.prices");
@@ -46,18 +46,9 @@ public class IngestionService {
     /** Retry interval in seconds when connection or producer initialization fails */
     private static final int RETRY_INTERVAL_SECONDS = Integer.parseInt(System.getenv().getOrDefault("RETRY_INTERVAL", "5"));
 
-    private static MarketDataRepository repository;
-
     public static void main(String[] args) {
-        logger.info("Starting Market Ingestion Service...");
+        logger.info("Starting Market Ingestion Service (Kafka Producer Mode)...");
         logger.info("Configuration: Simulator={}:{}, Kafka={}", SIMULATOR_HOST, SIMULATOR_PORT, KAFKA_BOOTSTRAP_SERVERS);
-
-        // Initialize Repository
-        try {
-            repository = new MarketDataRepository();
-        } catch (Exception e) {
-            logger.error("Failed to initialize MarketDataRepository: {}", e.getMessage());
-        }
 
         KafkaProducer<String, String> producer = null;
         Socket socket = null;
@@ -121,7 +112,7 @@ public class IngestionService {
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA_BOOTSTRAP_SERVERS);
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
-        // Optimize for throughput
+        // Optimize for throughput for high volume market data
         props.put(ProducerConfig.LINGER_MS_CONFIG, 5); 
         props.put(ProducerConfig.BATCH_SIZE_CONFIG, 16384);
         
@@ -158,29 +149,13 @@ public class IngestionService {
                     for (JsonNode tick : data) {
                         String symbol = tick.path("symbol").asText();
                         if (RELEVANT_TICKERS.contains(symbol)) {
-                            // Publish raw tick data, keyed by symbol
+                            // Publish raw tick data, keyed by symbol, to Kafka
                             String tickJson = objectMapper.writeValueAsString(tick);
                             producer.send(new ProducerRecord<>(KAFKA_TOPIC, symbol, tickJson), (metadata, exception) -> {
                                 if (exception != null) {
                                     logger.error("Kafka Write Error for {}: {}", symbol, exception.getMessage());
                                 }
                             });
-
-                            // Save to TimescaleDB
-                            if (repository != null) {
-                                try {
-                                    double last = tick.path("last").asDouble();
-                                    double high = tick.path("high").asDouble();
-                                    double low = tick.path("low").asDouble();
-                                    long volume = tick.path("volume").asLong();
-                                    String timestamp = tick.path("timestamp").asText();
-
-                                    // Treat tick as a candle where open=close=price
-                                    repository.saveMarketTick(symbol, last, last, high, low, last, volume, timestamp);
-                                } catch (Exception e) {
-                                    logger.error("DB Write Error for {}: {}", symbol, e.getMessage());
-                                }
-                            }
                         }
                     }
                 }
@@ -199,3 +174,4 @@ public class IngestionService {
         }
     }
 }
+
