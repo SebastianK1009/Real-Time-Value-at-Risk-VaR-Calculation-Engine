@@ -5,16 +5,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 
 import org.apache.commons.math3.distribution.NormalDistribution;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.var.risk.calculator.domain.EnrichedPortfolioState;
-import com.var.risk.calculator.domain.RiskPortfolioState;
 import com.var.risk.calculator.domain.PortfolioPosition;
+import com.var.risk.calculator.domain.RiskPortfolioState;
 import com.var.risk.calculator.domain.RiskResult;
 import com.var.risk.calculator.repository.MarketDataRepository;
 
