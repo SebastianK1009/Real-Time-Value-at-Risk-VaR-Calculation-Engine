@@ -15,11 +15,16 @@ env:
   kafkaBootstrapServers: "kafka-cluster.kafka:9092"
   kafkaTopic: "market.raw.prices"
   retryInterval: "5"
+  dbHost: "timescaledb.timescaledb.svc.cluster.local"
+  dbPort: "5432"
+  dbName: "postgres"
+  dbUser: "postgres"
+  dbPass: "timescale_password"
 
 resources:
   limits:
-    cpu: 1000m
-    memory: 512Mi
+    cpu: 500m
+    memory: 384Mi
   requests:
     cpu: 100m
-    memory: 256Mi
+    memory: 128Mi

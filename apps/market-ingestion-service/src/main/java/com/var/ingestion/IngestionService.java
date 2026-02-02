@@ -1,14 +1,5 @@
 package com.var.ingestion;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.ProducerConfig;
-import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.StringSerializer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -18,6 +9,16 @@ import java.util.HashSet;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.serialization.StringSerializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class IngestionService {
 
@@ -45,9 +46,18 @@ public class IngestionService {
     /** Retry interval in seconds when connection or producer initialization fails */
     private static final int RETRY_INTERVAL_SECONDS = Integer.parseInt(System.getenv().getOrDefault("RETRY_INTERVAL", "5"));
 
+    private static MarketDataRepository repository;
+
     public static void main(String[] args) {
         logger.info("Starting Market Ingestion Service...");
         logger.info("Configuration: Simulator={}:{}, Kafka={}", SIMULATOR_HOST, SIMULATOR_PORT, KAFKA_BOOTSTRAP_SERVERS);
+
+        // Initialize Repository
+        try {
+            repository = new MarketDataRepository();
+        } catch (Exception e) {
+            logger.error("Failed to initialize MarketDataRepository: {}", e.getMessage());
+        }
 
         KafkaProducer<String, String> producer = null;
         Socket socket = null;
@@ -155,6 +165,22 @@ public class IngestionService {
                                     logger.error("Kafka Write Error for {}: {}", symbol, exception.getMessage());
                                 }
                             });
+
+                            // Save to TimescaleDB
+                            if (repository != null) {
+                                try {
+                                    double last = tick.path("last").asDouble();
+                                    double high = tick.path("high").asDouble();
+                                    double low = tick.path("low").asDouble();
+                                    long volume = tick.path("volume").asLong();
+                                    String timestamp = tick.path("timestamp").asText();
+
+                                    // Treat tick as a candle where open=close=price
+                                    repository.saveMarketTick(symbol, last, last, high, low, last, volume, timestamp);
+                                } catch (Exception e) {
+                                    logger.error("DB Write Error for {}: {}", symbol, e.getMessage());
+                                }
+                            }
                         }
                     }
                 }

@@ -29,5 +29,15 @@ spec:
               value: {{ .Values.env.kafkaTopic | quote }}
             - name: RETRY_INTERVAL
               value: {{ .Values.env.retryInterval | quote }}
+            - name: DB_HOST
+              value: {{ .Values.env.dbHost | quote }}
+            - name: DB_PORT
+              value: {{ .Values.env.dbPort | quote }}
+            - name: DB_NAME
+              value: {{ .Values.env.dbName | quote }}
+            - name: DB_USER
+              value: {{ .Values.env.dbUser | quote }}
+            - name: DB_PASS
+              value: {{ .Values.env.dbPass | quote }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
