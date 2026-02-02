@@ -33,6 +33,7 @@ up-raw:
 # Deploy using Helm Charts
 deploy-helm: update-kubeconfig
 	@echo "Deploying Services via Helm..."
+
 	# Cleanup raw manifests to avoid conflicts
 	$(MAKE) undeploy-raw || true
 	
@@ -75,8 +76,10 @@ undeploy-raw:
 	@echo "All Raw Manifest resources deleted."
 
 # Full Tear Down (defaults to uninstalling everything before destroying infra)
+# Note: If "Unauthorized" error occurs during destroy, resources are removed from state first
 down: uninstall-helm undeploy-raw
-	terraform destroy -auto-approve
+	@echo "Destroying infrastructure..."
+	terraform destroy -auto-approve || (echo "Removing Kubernetes resources from state..." && terraform state rm kubernetes_namespace.kafka helm_release.kafka 2>/dev/null; terraform destroy -auto-approve)
 	@echo "Cluster destroyed. Billing stopped."
 
 plan:

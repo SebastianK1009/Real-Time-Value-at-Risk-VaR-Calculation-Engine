@@ -1,0 +1,67 @@
+# TimescaleDB Single-Node Values.yaml adjusted for the chart
+replicaCount: 1
+
+image:
+  repository: timescale/timescaledb-ha
+  tag: pg14.10-ts2.13.0-all
+  pullPolicy: IfNotPresent
+
+# Simplified service configuration
+service:
+  primary:
+    type: ClusterIP
+    port: 5432
+  replica:
+    type: ClusterIP
+    port: 5432
+
+# Patroni handles the Postgres configuration
+patroni:
+  postgresql:
+    authentication:
+      superuser:
+        username: postgres
+        # Password will be set via secret credentials below if needed
+      replication:
+        username: standby
+    parameters:
+      max_connections: 100
+      shared_buffers: 256MB
+
+# Secrets management for passwords
+secrets:
+  credentials:
+    PATRONI_SUPERUSER_PASSWORD: "timescale_password"
+    PATRONI_REPLICATION_PASSWORD: "standby_password"
+    PATRONI_admin_PASSWORD: "admin_password"
+
+# Persistence configuration matches the chart structure
+persistentVolumes:
+  data:
+    enabled: true
+    size: 5Gi
+    storageClass: "gp2" # Explicitly use the default EKS storage class
+    mountPath: "/var/lib/postgresql"
+  wal:
+    enabled: true
+    size: 2Gi
+    storageClass: "gp2"
+    mountPath: "/var/lib/postgresql/wal"
+
+# Resource limits need to be strings, e.g., "500m"
+resources:
+  requests:
+    cpu: "250m"
+    memory: "256Mi"
+  limits:
+    cpu: "1000m"
+    memory: "1Gi"
+
+# Disable backup for dev
+backup:
+  enabled: false
+
+# Tuning tool
+timescaledbTune:
+  enabled: true
+
