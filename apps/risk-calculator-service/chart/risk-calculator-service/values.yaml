@@ -8,6 +8,13 @@ image:
 kafka:
   bootstrapServers: "kafka-cluster.kafka.svc:9092"
 
+env:
+  dbHost: "timescaledb.timescaledb.svc.cluster.local"
+  dbPort: "5432"
+  dbName: "postgres"
+  dbUser: "postgres"
+  dbPass: "timescale_password"
+
 resources:
   limits:
     cpu: 500m
