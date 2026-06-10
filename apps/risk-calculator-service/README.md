@@ -32,67 +32,63 @@ Think of this service as a **Real-Time Risk Analyst**:
 
 ---
 
-## Technical Deep Dive (Engineering View)
+### Technical Deep Dive (Engineering View)
 
-The **Risk Calculator Service** works slightly differently from the upstream processor. While it also uses **Kafka Streams**, its focus is on **Complex Event Processing (CEP)** and **compute-heavy payloads** rather than just high-throughput aggregation.
+The **Risk Calculator Service** uses **Kafka Streams** for event-driven orchestration, but the market-price lookup is now handled by **TimescaleDB** through JDBC instead of a Kafka `GlobalKTable` or local RocksDB state store.
 
 ### 1. The Processing Topology
-The `RiskCalculatorTopology` is designed as a triggered computation engine with **Dual Input Streams**.
+The `RiskCalculatorTopology` is a triggered computation engine with a single input stream.
 
-*   **Primary Stream (`risk.portfolio.state`)**: Consumes snapshots of what a portfolio currently holds. This triggers the calculation.
-*   **Reference Table (`market.enriched`)**: Consumes the latest market prices for all symbols.
-    *   **Architecture**: Uses a **GlobalKTable**. This replicates the entire market state to *every* instance of the service.
-    *   **Reasoning**: This allows any portfolio (on any partition) to instantly look up the price of any stock (e.g., AAPL) without complex re-partitioning or network hops during the calculation.
+*   **Primary Stream (`risk.portfolio.state`)**: Consumes portfolio snapshots and triggers the VaR calculation.
+*   **Price History Store (`market_enriched`)**: The calculator queries TimescaleDB for the latest historical closes for every symbol in the portfolio.
+
+### 2. Runtime Data Path
+The lifecycle of a single calculation is:
+
+1.  A portfolio snapshot lands on `risk.portfolio.state`.
+2.  `StatelessVaRCalculator` receives the portfolio.
+3.  `MarketDataRepository` queries TimescaleDB for the last 100 `close` prices per symbol from `market_enriched`.
+4.  The calculator builds a portfolio value series from that history.
+5.  It computes Historical VaR and Monte Carlo VaR.
+6.  It publishes the result to `risk.model.results`.
+
+### 3. Storage Used by the Calculator
+*   **TimescaleDB**: Stores market history in `market_enriched`.
+*   **Kafka**: Carries the trigger event (`risk.portfolio.state`) and the output result (`risk.model.results`).
+*   **HikariCP connection pool**: Manages the JDBC connections used by `MarketDataRepository`.
 
 ### End-to-End Analysis Path
 This section details the lifecycle of a single risk calculation, from the moment data lands in Kafka to the final Value at Risk metric.
 
-### Step 1: Storage (The Foundation)
-Before any calculation can happen, the system ensures all necessary market data is available locally on every computation node.
-
-*   **Input Components**:
-    *   **Topic**: `market.enriched` (The source of truth for prices).
-    *   **Mechanism**: `GlobalKTable`.
-    *   **Physical Store**: **RocksDB** of every pod (named `market-store`).
-*   **Detailed Mechanism**:
-    *   **Background Process**: The Kafka Streams library in your app has a background thread (the "Global Consumer").
-    *   **Trigger**: As soon as a message lands in `market.enriched`:
-        1.  The Global Consumer picks it up.
-        2.  It creates a key-value pair.
-        3.  It instantly writes/updates that row in the local **RocksDB**.
-    *   **Result**: Every pod has a complete, millisecond-fresh copy of the entire stock market (prices) on its local SSD, preventing the need for network lookups during hot-path processing.
-
-### Step 2: Ingestion & Trigger (The Event)
-The calculation is event-driven, triggered effectively whenever a portfolio changes.
+### Step 1: Ingestion & Trigger (The Event)
+The calculation is event-driven, triggered whenever a portfolio changes.
 
 *   **Input Component**:
     *   **Topic**: `risk.portfolio.state`.
-    *   **Payload**: `RiskPortfolioState` (e.g., "Portfolio 'A' now holds 50 AAPL and 100 TSLA").
+    *   **Payload**: `RiskPortfolioState` (for example, a portfolio holding 50 AAPL and 100 TSLA).
 *   **Action**:
     1.  The stream consumer picks up the message.
-    2.  The "Key" is the Portfolio ID (ensuring all updates for Portfolio 'A' go to the same thread).
+    2.  The portfolio ID is used as the key so updates for the same portfolio stay ordered.
 
-### Step 3: Enrichment (The Context)
-The portfolio state alone is useless without knowing what the assets are worth.
-*   **Component**: `PortfolioPricer` (Transformer).
-*   **The "Stream-Table Join"**:
-    1.  The `PortfolioPricer` receives the portfolio snapshot.
-    2.  It iterates through every asset (AAPL, TSLA).
-    3.  It queries the local RocksDB (`market-store`) for the latest price.
-    4.  It constructs an `EnrichedPortfolioState` where each asset has a `referencePrice` attached.
+### Step 2: Enrichment (The Context)
+The portfolio state alone is not enough to estimate risk.
+*   **Component**: `MarketDataRepository`.
+*   **Lookup**:
+    1.  The repository opens a pooled JDBC connection.
+    2.  For each symbol in the portfolio, it queries `market_enriched` in TimescaleDB.
+    3.  It returns the latest historical `close` prices ordered by time.
 
-### Step 4: State Accumulation (The Memory)
-VaR requires history, not just the present. We need to know how the portfolio *would have* performed in the past.
-*   **Component**: `.aggregate()` (Stateful Operation).
-*   **Store**: `HistoricalWindow` (in RocksDB).
+### Step 3: State Accumulation (The Memory)
+VaR requires history, not just the present.
+*   **Component**: `StatelessVaRCalculator`.
 *   **Logic**:
-    1.  The logic retrieves the `HistoricalWindow` list for this portfolio from RocksDB.
-    2.  It appends the new `EnrichedPortfolioState` to the list.
-    3.  **Sliding Window**: If the list size exceeds `MAX_WINDOW_SIZE` (100), the oldest entry is dropped (FIFO).
-    4.  The updated list is saved back to RocksDB.
+    1.  The calculator aligns the returned per-symbol price histories by index.
+    2.  It constructs a portfolio value series.
+    3.  It converts that series into returns.
+    4.  It uses those returns for the risk models below.
 
-### Step 5: The Math Core (The Valuation)
-Once the window is updated, the system passes the entire list of 100 snapshots to the `VaRCalculator`.
+### Step 4: The Math Core (The Valuation)
+Once the history is loaded, the system passes the price-derived return series to the VaR models.
 
 **A. Time Series Construction**
 It calculates the Total Portfolio Value for every snapshot in history.
@@ -137,17 +133,17 @@ The `MAX_WINDOW_SIZE` (currently 100) is the most critical configuration.
     *   *Cons*: Statistical noise. A single bad tick represents 1% probability, making the VaR jumpy.
 *   **1000+ Ticks**:
     *   *Pros*: Smooth, statistically valid results.
-    *   *Cons*: **Write Amplification**. Every update requires serializing/deserializing a massive list and sending it over the network (Kafka Changelog), crushing performance.
+    *   *Cons*: More database I/O and a heavier query path for each calculation.
 
 #### 2. The Impact of Volatility
 The system is highly sensitive to market volatility ($\sigma$).
-*   If a stock like TSLA starts moving erratically, the Standard Deviation of the `HistoricalWindow` increases immediately.
+*   If a stock like TSLA starts moving erratically, the standard deviation of the price-return series increases immediately.
 *   This causes the "Bell Curve" to widen, pushing the 99% cutoff point further down, automatically increasing the reported Value at Risk.
 
 ### Key Differences from Stream Processor
 | Feature | Risk Stream Processor | Risk Calculator Service |
 | :--- | :--- | :--- |
 | **Primary Goal** | Data Normalization & Reduction | Complex Mathematical Computation |
-| **State Type** | Aggregates (Sums, OHLC) | Collections (Lists/Windows of History) |
+| **State Type** | Aggregates (Sums, OHLC) | Database-backed price history lookup |
 | **CPU Profile** | Low (I/O Bound) | High (CPU Bound) |
-| **Scale Strategy** | Scale by Partition count | Scale by CPU availability (Vertical or Horizontal) |
+| **Scale Strategy** | Scale by Partition count | Scale by CPU availability and database throughput |

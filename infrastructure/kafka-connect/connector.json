@@ -1,0 +1,21 @@
+{
+    "name": "timescaledb-sink",
+    "config": {
+        "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
+        "tasks.max": "1",
+        "topics": "market.enriched",
+        "connection.url": "jdbc:postgresql://timescaledb.timescaledb.svc.cluster.local:5432/postgres",
+        "connection.user": "postgres",
+        "connection.password": "timescale_password",
+        "auto.create": "false",
+        "insert.mode": "insert",
+        "pk.mode": "none",
+        "table.name.format": "market_enriched",
+        
+        "fields.whitelist": "symbol,open,high,low,close,volume,startTime,endTime",
+        
+        "transforms": "RenameField",
+        "transforms.RenameField.type": "org.apache.kafka.connect.transforms.ReplaceField$Value",
+        "transforms.RenameField.renames": "startTime:start_time,endTime:end_time,close:price"
+    }
+}

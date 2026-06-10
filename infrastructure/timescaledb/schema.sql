@@ -1,14 +1,3 @@
--- Create the market_data table
-CREATE TABLE IF NOT EXISTS market_data (
-    time        TIMESTAMPTZ       NOT NULL,
-    symbol      TEXT              NOT NULL,
-    price       DECIMAL(18,8)     NOT NULL,
-    volume      INT               NOT NULL
-);
-
--- Convert to hypertable
-SELECT create_hypertable('market_data', 'time', if_not_exists => TRUE);
-
 -- Create the market_enriched table
 CREATE TABLE IF NOT EXISTS market_enriched (
     time        TIMESTAMPTZ       NOT NULL,

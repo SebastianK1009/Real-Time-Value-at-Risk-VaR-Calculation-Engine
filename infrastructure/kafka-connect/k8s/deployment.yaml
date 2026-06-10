@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-connect
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka-connect
+  template:
+    metadata:
+      labels:
+        app: kafka-connect
+    spec:
+      volumes:
+        - name: plugins-vol
+          emptyDir: {}
+      initContainers:
+        - name: install-jdbc
+          image: confluentinc/cp-kafka-connect:7.6.0
+          command: ["sh", "-c", "confluent-hub install --no-prompt confluentinc/kafka-connect-jdbc:10.7.4 --component-dir /plugins"]
+          volumeMounts:
+            - name: plugins-vol
+              mountPath: /plugins
+      containers:
+        - name: kafka-connect
+          image: confluentinc/cp-kafka-connect:7.6.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8083
+          volumeMounts:
+            - name: plugins-vol
+              mountPath: /usr/share/confluent-hub-components
+          env:
+            - name: CONNECT_BOOTSTRAP_SERVERS
+              value: "kafka-cluster.kafka:9092"
+            - name: CONNECT_REST_PORT
+              value: "8083"
+            - name: CONNECT_GROUP_ID
+              value: "kafka-connect-group"
+            - name: CONNECT_CONFIG_STORAGE_TOPIC
+              value: "_connect-configs"
+            - name: CONNECT_OFFSET_STORAGE_TOPIC
+              value: "_connect-offsets"
+            - name: CONNECT_STATUS_STORAGE_TOPIC
+              value: "_connect-status"
+            - name: CONNECT_KEY_CONVERTER
+              value: "org.apache.kafka.connect.storage.StringConverter"
+            - name: CONNECT_VALUE_CONVERTER
+              value: "org.apache.kafka.connect.json.JsonConverter"
+            - name: CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE
+              value: "false"
+            - name: CONNECT_INTERNAL_KEY_CONVERTER
+              value: "org.apache.kafka.connect.json.JsonConverter"
+            - name: CONNECT_INTERNAL_VALUE_CONVERTER
+              value: "org.apache.kafka.connect.json.JsonConverter"
+            - name: CONNECT_REST_ADVERTISED_HOST_NAME
+              value: "kafka-connect"
+            - name: CONNECT_PLUGIN_PATH
+              value: "/usr/share/java,/usr/share/confluent-hub-components"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-connect
+  namespace: default
+spec:
+  selector:
+    app: kafka-connect
+  ports:
+    - protocol: TCP
+      port: 8083
+      targetPort: 8083

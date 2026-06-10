@@ -2,6 +2,10 @@ resource "kubernetes_namespace" "timescaledb" {
   metadata {
     name = "timescaledb"
   }
+
+  depends_on = [
+    module.eks
+  ]
 }
 
 resource "helm_release" "timescaledb" {

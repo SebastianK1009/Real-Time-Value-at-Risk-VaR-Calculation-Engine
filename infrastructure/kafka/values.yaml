@@ -1,6 +1,10 @@
 # Bitnami Kafka Chart Configuration
 # using KRaft mode (no ZooKeeper)
 
+global:
+  security:
+    allowInsecureImages: true
+
 # Use AWS ECR Public mirror to avoid Docker Hub rate limits and 404s
 image:
   registry: public.ecr.aws
@@ -13,41 +17,54 @@ controller:
   replicaCount: 1 # Runs only 1 Kafk broker pod, but low availability
   
   # Minimal Resources
-  resources:
-    limits:
-      memory: 512Mi
-    requests:
-      memory: 256Mi
-      cpu: 100m
+  # resources: defined below
+
 
   # Reduced JVM Heap settings
   # Kafka runs on Java. Adjusting heap size helps fit into low memory.
-  heapOpts: "-Xmx256m -Xms256m" # Sets Java Heap memory to exactly 256MB. 
-                                # Use constant size (Xmx == Xms) to prevent performance jitter from resizing.
+  heapOpts: "-Xmx512m -Xms512m" # Increased to 512m
   
   persistence:
-    enabled: true # If the pod crashes/restarts, data is preserved.
-    storageClass: "gp2" # Uses AWS EBS gp2 storage class
-    size: 2Gi   # Allocate 2Gi storage for Kafka data
+    enabled: true
+    storageClass: "gp2"
+    size: 10Gi
+  
+  # Fix for permission issues on AWS EBS volumes
+  volumePermissions:
+    enabled: true
+
+  resources:
+    limits:
+      memory: 1Gi  # Increased to 1Gi
+    requests:
+      memory: 512Mi
+      cpu: 100m
 
 # KRaft settings
 kraft:
   enabled: true
+
+auth:
+  clientProtocol: PLAINTEXT
+  interBrokerProtocol: PLAINTEXT
+  sasl:
+    enabled: false
+
+listeners:
+  client:
+    protocol: PLAINTEXT
+  interbroker:
+    protocol: PLAINTEXT
+  controller:
+    protocol: PLAINTEXT
+
 
 # Disable ZooKeeper
 # This saves money and resources, as you don't need a separate cluster just to manage metadata of Kafka.
 zookeeper:
   enabled: false
 
-# Listeners configuration
-# Defines how Kafka brokers communicate with clients and each other.
-listeners:
-  client:
-    protocol: PLAINTEXT 
-  interbroker:
-    protocol: PLAINTEXT
-  controller:
-    protocol: PLAINTEXT
+
 
 # Extra Environment Variables
 # Necessary for single-node cluster to function correctly without 3 replicas

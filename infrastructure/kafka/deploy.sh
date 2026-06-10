@@ -13,6 +13,7 @@ echo "Deploying Kafka Cluster..."
 helm upgrade --install kafka-cluster bitnami/kafka \
   --namespace kafka \
   --values values.yaml \
+  --version 28.1.0 \
   --wait
 
 echo "Deployment complete! You can connect to the cluster at: kafka-cluster.kafka.svc.cluster.local:9092"

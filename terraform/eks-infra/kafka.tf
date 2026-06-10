@@ -2,6 +2,10 @@ resource "kubernetes_namespace" "kafka" {
   metadata {
     name = "kafka"
   }
+
+  depends_on = [
+    module.eks
+  ]
 }
 
 resource "helm_release" "kafka" {

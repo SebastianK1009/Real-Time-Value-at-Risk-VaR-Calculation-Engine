@@ -1,6 +1,7 @@
 REGION := ap-southeast-1
 CLUSTER_NAME := realtime-risk-dev
 APPS_DIR := ../../apps
+INFRA_DIR := ../../infrastructure
 
 .PHONY: up down plan cost deploy-helm deploy-raw deploy uninstall-helm undeploy-raw verify update-kubeconfig
 
@@ -36,10 +37,14 @@ deploy-helm: update-kubeconfig
 
 	# Cleanup raw manifests to avoid conflicts
 	$(MAKE) undeploy-raw || true
+
+	# Deploy Kafka Connect (Infrastructure)
+	kubectl apply -f $(INFRA_DIR)/kafka-connect/k8s/deployment.yaml
 	
 	helm upgrade --install market-data-simulator $(APPS_DIR)/market-data-simulator/chart/market-data-simulator --wait
 	helm upgrade --install market-ingestion-service $(APPS_DIR)/market-ingestion-service/chart/market-ingestion-service --wait
 	# Note: ConfigMap is included in the risk-stream-processor chart now
+	helm upgrade --install risk-calculator-service $(APPS_DIR)/risk-calculator-service/chart/risk-calculator-service --wait
 	helm upgrade --install risk-stream-processor $(APPS_DIR)/risk-stream-processor/chart/risk-stream-processor --wait
 	helm upgrade --install trade-data-simulator $(APPS_DIR)/trade-data-simulator/chart/trade-data-simulator --wait
 	helm upgrade --install trade-ingestion-service $(APPS_DIR)/trade-ingestion-service/chart/trade-ingestion-service --wait
@@ -51,8 +56,12 @@ deploy-raw: update-kubeconfig
 	# Cleanup helm releases to avoid conflicts
 	$(MAKE) uninstall-helm || true
 
+	# Deploy Kafka Connect (Infrastructure)
+	kubectl apply -f $(INFRA_DIR)/kafka-connect/k8s/deployment.yaml
+
 	kubectl apply -f $(APPS_DIR)/market-data-simulator/k8s/deployment.yaml
 	kubectl apply -f $(APPS_DIR)/market-ingestion-service/k8s/deployment.yaml
+	kubectl apply -f $(APPS_DIR)/risk-calculator-service/k8s/deployment.yaml
 	kubectl apply -f $(APPS_DIR)/risk-stream-processor/k8s/configmap.yaml
 	kubectl apply -f $(APPS_DIR)/risk-stream-processor/k8s/deployment.yaml
 	kubectl apply -f $(APPS_DIR)/trade-data-simulator/k8s/deployment.yaml
@@ -63,6 +72,7 @@ deploy-raw: update-kubeconfig
 uninstall-helm:
 	helm uninstall market-data-simulator || true
 	helm uninstall market-ingestion-service || true
+	helm uninstall risk-calculator-service || true
 	helm uninstall risk-stream-processor || true
 	helm uninstall trade-data-simulator || true
 	helm uninstall trade-ingestion-service || true
@@ -70,16 +80,24 @@ uninstall-helm:
 
 # Cleanup Raw Manifests
 undeploy-raw:
-	kubectl delete deployment market-data-simulator market-ingestion-service risk-stream-processor trade-data-simulator trade-ingestion-service 2>/dev/null || true
-	kubectl delete service market-data-simulator market-ingestion-service risk-stream-processor trade-data-simulator trade-ingestion-service 2>/dev/null || true
+	kubectl delete deployment kafka-connect market-data-simulator market-ingestion-service risk-calculator-service risk-stream-processor trade-data-simulator trade-ingestion-service 2>/dev/null || true
+	kubectl delete service kafka-connect market-data-simulator market-ingestion-service risk-calculator-service risk-stream-processor trade-data-simulator trade-ingestion-service 2>/dev/null || true
 	kubectl delete configmap risk-logging-config 2>/dev/null || true
 	@echo "All Raw Manifest resources deleted."
+
+# Force remove Kubernetes resources from Terraform state to recover from Unauthorized/Forbidden errors
+fix-state:
+	@echo "Removing blocked Kubernetes resources from Terraform state..."
+	terraform state rm kubernetes_namespace.kafka helm_release.kafka \
+		kubernetes_namespace.timescaledb helm_release.timescaledb \
+		kubernetes_config_map.timescaledb_init kubernetes_job.timescaledb_schema_loader 2>/dev/null || true
+	@echo "State repaired. You can now run 'make up'."
 
 # Full Tear Down (defaults to uninstalling everything before destroying infra)
 # Note: If "Unauthorized" error occurs during destroy, resources are removed from state first
 down: uninstall-helm undeploy-raw
 	@echo "Destroying infrastructure..."
-	terraform destroy -auto-approve || (echo "Removing Kubernetes resources from state..." && terraform state rm kubernetes_namespace.kafka helm_release.kafka 2>/dev/null; terraform destroy -auto-approve)
+	terraform destroy -auto-approve || (echo "Removing Kubernetes resources from state..." && terraform state rm kubernetes_namespace.kafka helm_release.kafka kubernetes_namespace.timescaledb helm_release.timescaledb kubernetes_config_map.timescaledb_init kubernetes_job.timescaledb_schema_loader 2>/dev/null; terraform destroy -auto-approve)
 	@echo "Cluster destroyed. Billing stopped."
 
 plan:

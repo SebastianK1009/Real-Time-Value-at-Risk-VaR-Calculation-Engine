@@ -18,10 +18,8 @@ module "eks_cluster" {
   enable_irsa = true
   
   # Enable cluster creator admin permissions
-  # Automatically mapped the IAM identity running Terraform to system:masters in Kubernetes
-  # Updated the aws-auth ConfigMap to include your user with cluster-admin privileges
-  # Without this, EKS have no record of your IAM user in its aws-auth ConfigMap
-  enable_cluster_creator_admin_permissions = true
+  # Disable this to avoid conflicts with explicit access entries
+  enable_cluster_creator_admin_permissions = false
 
   cluster_addons = {
     aws-ebs-csi-driver = {
@@ -66,7 +64,7 @@ module "eks_cluster" {
       min_size       = 1
       max_size       = 3
       desired_size   = 2
-      capacity_type  = "ON_DEMAND"
+      capacity_type  = "SPOT"
     }
   }
 
